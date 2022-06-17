@@ -1,6 +1,6 @@
+from math import sqrt
 import numpy as np
-from scipy.optimize import Bounds
-from scipy.optimize import minimize
+from scipy.optimize import Bounds, minimize, NonlinearConstraint
 
 # FOV range (a.k.a height of the cone)
 fov_range = 5
@@ -16,13 +16,13 @@ V_z = 5
 V = (V_x, V_y, V_z)
 
 # number of cameras
-N = 2
+N = 8
 
 # numbers of position variables (and also number of angle variables)
-N_p = 3 * N
+NUM_VAR = 6
 
 # the scale of the grid
-epsilon = 0.1
+epsilon = 1
 
 
 # return the number of points that lie in the FOV of at least two cameras
@@ -30,9 +30,9 @@ def objective_function(x):
     total = 0
 
     # loop over all points in the grid defined by cutting V every epsilon meters
-    n_x = V_x / epsilon
-    n_y = V_y / epsilon
-    n_z = V_z / epsilon
+    n_x = int(V_x / epsilon)
+    n_y = int(V_y / epsilon)
+    n_z = int(V_z / epsilon)
     for a in range(n_x):
         p_x = epsilon * a 
         for b in range(n_y):
@@ -40,25 +40,27 @@ def objective_function(x):
             for c in range(n_z):
                 p_z = epsilon * c
                 grid_point = np.array([p_x, p_y, p_z])
+                print(p_x, p_y, p_z)
 
                 fov_count = 0
                 # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
-                for i in range(N_p):
+                for i in range(N):
                     cam_x = x[i]
                     cam_y = x[i+1]
                     cam_z = x[i+2]
-                    cam_theta_x = x[N_p+i]
-                    cam_theta_y = x[N_p+i+1]
-                    cam_theta_z = x[N_p+i+2]
+                    cam_o_x = x[i+3]
+                    cam_o_y = x[i+4]
+                    cam_o_z = x[i+5]
 
                     pos_vec = np.array([cam_x, cam_y, cam_z])
-                    angles = np.array([cam_theta_x, cam_theta_y, cam_theta_z])
-                    orientation_vec = np.cos(np.deg2rad(angles))
+                    orientation_vec = np.array([cam_o_x, cam_o_y, cam_o_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
+                        print("in fov")
                         fov_count += 1
 
                     if fov_count >= 2:
+                        print("more than 2")
                         total += 1
                         break
     return total
@@ -80,6 +82,30 @@ def in_fov(pos_vec, orientation_vec, grid_point):
     return dist_from_axis < radius_at_cone_dist
 
 
+def random_position_and_orientation():
+    x = np.random.random() * V_x
+    y = np.random.random() * V_y
+    z = np.random.random() * V_z
+    
+    o_x, o_y, o_z = 0, 0, 0
+    orientation = np.random.randint(0, 6)
+    if orientation == 0:
+        o_x = 1 
+    elif orientation == 1:
+        o_x = -1
+    elif orientation == 2:
+        o_y = 1
+    elif orientation == 3:
+        o_y = -1
+    elif orientation == 4:
+        o_z = 1
+    elif orientation == 5:
+        o_z = -1
+    else:
+        raise Exception()
+
+    return [x, y, z, o_x, o_y, o_z]
+
 
 if __name__ == '__main__':
     '''
@@ -94,16 +120,29 @@ if __name__ == '__main__':
     It is quite difficult to pin down how to define the objective function.
     '''
 
-    # Each of the cameras' x, y, and z must be greater than 0 and less than the corresponding term in V
-    # There are 3N x, y, and z positions to track and 3N angles to track (so 6N variables in total)
+    # the positions can't be less than 0, and the unit vec components can't be less than -1
+    lower_bounds = [0, 0, 0, -1, -1, -1] * N
+    # the positions can't be greater than the dimensions of V, and the unit vec components can't be greater than 1
+    upper_bounds = [V_x, V_y, V_z, 1, 1, 1] * N
+    bounds = Bounds(lower_bounds, upper_bounds)
 
-    # lower_bounds = [0] * (6 * N)
-    pos_upper_bounds = [V_x, V_y, V_z] * N
-    angle_upper_bounds = [180] * (N_p)
-    upper_bounds = pos_upper_bounds + angle_upper_bounds
-    bounds = Bounds(0, upper_bounds)
+    def ith_orientation_unit_vec(i):
+        def f(x):
+            i_vec_start = i * NUM_VAR
+            o_x, o_y, o_z = x[i_vec_start+3], x[i_vec_start+4], x[i_vec_start+5]
+            return sqrt(o_x**2 + o_y**2 + o_z**2)
+        return f
+
+    constraints = [NonlinearConstraint(ith_orientation_unit_vec(i), 1, 1) for i in range(N)]
 
     # provide an initial guess of the cameras' positions
     # TODO: change this so that each variable is chosen randomly from between the appropriate bounds
-    x0 = [0] * (6 * N)
-    res = minimize(objective_function, x0, bounds=bounds)
+    x0 = []
+    for i in range(N):
+        po = random_position_and_orientation()
+        print(po)
+        x0.extend(po)
+    
+    print("minimizing")
+    res = minimize(objective_function, x0, constraints=constraints, bounds=bounds)
+    print(res)
