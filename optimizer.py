@@ -67,7 +67,7 @@ def objective_function(x):
                         total += 1
                         break
     # TODO: be careful with the sign of total (depending on whether max'ing or min'ing the obj. func.) 
-    return total
+    return -total
 
 
 def in_fov(pos_vec, orientation_vec, grid_point):
