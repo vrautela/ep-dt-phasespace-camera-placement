@@ -16,10 +16,10 @@ V_z = 5
 V = (V_x, V_y, V_z)
 
 # number of cameras
-N = 8
+N = 2
 
 # numbers of position variables (and also number of angle variables)
-NUM_VAR = 6
+NUM_VAR = 5
 
 # the scale of the grid
 epsilon = 1
@@ -40,7 +40,7 @@ def objective_function(x):
             for c in range(n_z):
                 p_z = epsilon * c
                 grid_point = np.array([p_x, p_y, p_z])
-                print(p_x, p_y, p_z)
+                # print(p_x, p_y, p_z)
 
                 fov_count = 0
                 # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
@@ -48,21 +48,25 @@ def objective_function(x):
                     cam_x = x[i]
                     cam_y = x[i+1]
                     cam_z = x[i+2]
-                    cam_o_x = x[i+3]
-                    cam_o_y = x[i+4]
-                    cam_o_z = x[i+5]
+                    cam_theta = x[i+3]
+                    cam_phi = x[i+4]
 
                     pos_vec = np.array([cam_x, cam_y, cam_z])
-                    orientation_vec = np.array([cam_o_x, cam_o_y, cam_o_z])
+                    # compute the unit vector defining the orientation based on the angles in spherical coords
+                    orientation_x = np.cos(cam_phi) * np.sin(cam_theta)
+                    orientation_y = np.sin(cam_phi) * np.sin(cam_theta)
+                    orientation_z = np.cos(cam_theta)
+                    orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        print("in fov")
+                        # print("in fov")
                         fov_count += 1
 
                     if fov_count >= 2:
-                        print("more than 2")
+                        # print("more than 2")
                         total += 1
                         break
+    # TODO: be careful with the sign of total (depending on whether max'ing or min'ing the obj. func.) 
     return total
 
 
@@ -87,24 +91,11 @@ def random_position_and_orientation():
     y = np.random.random() * V_y
     z = np.random.random() * V_z
     
-    o_x, o_y, o_z = 0, 0, 0
-    orientation = np.random.randint(0, 6)
-    if orientation == 0:
-        o_x = 1 
-    elif orientation == 1:
-        o_x = -1
-    elif orientation == 2:
-        o_y = 1
-    elif orientation == 3:
-        o_y = -1
-    elif orientation == 4:
-        o_z = 1
-    elif orientation == 5:
-        o_z = -1
-    else:
-        raise Exception()
+    # generate spherical coordinate angles (in radians) to define the orientation of the FOV
+    theta = np.deg2rad(np.random.random() * 180)
+    phi = np.deg2rad(np.random.random() * 360)
 
-    return [x, y, z, o_x, o_y, o_z]
+    return [x, y, z, theta, phi]
 
 
 if __name__ == '__main__':
@@ -121,19 +112,10 @@ if __name__ == '__main__':
     '''
 
     # the positions can't be less than 0, and the unit vec components can't be less than -1
-    lower_bounds = [0, 0, 0, -1, -1, -1] * N
+    # lower_bounds = [0, 0, 0, 0, 0] * N
     # the positions can't be greater than the dimensions of V, and the unit vec components can't be greater than 1
-    upper_bounds = [V_x, V_y, V_z, 1, 1, 1] * N
-    bounds = Bounds(lower_bounds, upper_bounds)
-
-    def ith_orientation_unit_vec(i):
-        def f(x):
-            i_vec_start = i * NUM_VAR
-            o_x, o_y, o_z = x[i_vec_start+3], x[i_vec_start+4], x[i_vec_start+5]
-            return sqrt(o_x**2 + o_y**2 + o_z**2)
-        return f
-
-    constraints = [NonlinearConstraint(ith_orientation_unit_vec(i), 1, 1) for i in range(N)]
+    upper_bounds = [V_x, V_y, V_z, 180, 360] * N
+    bounds = Bounds(0, upper_bounds)
 
     # provide an initial guess of the cameras' positions
     # TODO: change this so that each variable is chosen randomly from between the appropriate bounds
@@ -144,5 +126,9 @@ if __name__ == '__main__':
         x0.extend(po)
     
     print("minimizing")
-    res = minimize(objective_function, x0, constraints=constraints, bounds=bounds)
+    # res = minimize(objective_function, x0, bounds=bounds)
+    res = minimize(objective_function, x0, bounds=bounds, options={"eps":1, "disp":True})
     print(res)
+
+    solution = res.x
+    print(solution)
