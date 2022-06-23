@@ -1,3 +1,4 @@
+from guesses import gen_guess_box
 from math import sqrt
 import numpy as np
 from scipy.optimize import Bounds, minimize, NonlinearConstraint
@@ -10,9 +11,9 @@ fov_degree = 50
 fov_base_radius = fov_range * np.tan(np.deg2rad(fov_degree))
 
 # dimensions of V (in m)
-V_x = 8
-V_y = 8
-V_z = 8
+V_x = 3.98
+V_y = 12.03
+V_z = 2.9
 V = (V_x, V_y, V_z)
 
 # number of cameras
@@ -22,7 +23,7 @@ N = 8
 NUM_VAR = 5
 
 # the scale of the grid
-epsilon = 0.5
+epsilon = 0.2
 
 
 # return the number of points that lie in the FOV of at least two cameras
@@ -45,7 +46,6 @@ def objective_function(x):
                 fov_count = 0
                 # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
                 for i in range(N):
-                    # WOAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH THIS IS SO WRONG (HAD TO ADD CAM_START)
                     cam_start = i * NUM_VAR
                     cam_x = x[cam_start]
                     cam_y = x[cam_start+1]
@@ -88,29 +88,14 @@ def in_fov(pos_vec, orientation_vec, grid_point):
     return dist_from_axis < radius_at_cone_dist
 
 
-# def random_position_and_orientation():
-#     x = np.random.random() * V_x
-#     y = np.random.random() * V_y
-#     z = np.random.random() * V_z
-    
-#     # generate spherical coordinate angles (in radians) to define the orientation of the FOV
-#     theta = np.deg2rad(np.random.random() * 180)
-#     phi = np.deg2rad(np.random.random() * 360)
-
-#     return [x, y, z, theta, phi]
-
-
-if __name__ == '__main__':
+def main():
     '''
     We want to set up and solve a constrained optimization problem (using a pre-built optimizer)
     The steps required to do so are:
     1. Define an objective function
     2. Define the constraints/bounds 
-    3. Provide initial guess/values (??)
+    3. Provide initial guess/values
     4. Run the optimization routine
-
-    Step 1 is the most work and should be its own module(s). 
-    It is quite difficult to pin down how to define the objective function.
     '''
 
     # the positions can't be less than 0, and the unit vec components can't be less than -1
@@ -139,9 +124,7 @@ if __name__ == '__main__':
     ]
     bounds = Bounds(lower_bounds, upper_bounds)
 
-    from guesses import gen_guess_cube
-    
-    x0 = gen_guess_cube(V_x)
+    x0 = gen_guess_box(V_x, V_y, V_z)
 
     print("minimizing")
     # res = minimize(objective_function, x0, bounds=bounds)
@@ -151,3 +134,7 @@ if __name__ == '__main__':
     f_value = res.fun
     num_points = int(V_x / epsilon) * int(V_y / epsilon) * int(V_z / epsilon)
     print(str(-f_value) + " out of " + str(num_points))
+
+
+if __name__ == '__main__':
+    main()

@@ -49,11 +49,12 @@ def gen_guess_box(l, w, h):
     center_y = w/2
     center_z = h/2
 
-    lp = l - 0.1
-    wp = w - 0.1
-    hp = h - 0.1
-
     center = np.array([center_x, center_y, center_z])
+
+    margin = 0.05
+    delta_l = l * margin
+    delta_w = w * margin
+    delta_h = h * margin
 
     c1 = np.array([0,0,0])
     c2 = np.array([0,0,h])
@@ -63,31 +64,41 @@ def gen_guess_box(l, w, h):
     c6 = np.array([l,0,h])
     c7 = np.array([l,w,0])
     c8 = np.array([l,w,h])
-
     cams = [c1, c2, c3, c4, c5, c6, c7, c8]
-    for cam in cams:
-        cam_x = cam[0]
-        cam_y = cam[1]
-        cam_z = cam[2]
 
+    for cam in cams:
         orientation_vec = center - cam
         o_x = orientation_vec[0]
         o_y = orientation_vec[1]
         o_z = orientation_vec[2]
 
-        cam_theta = np.arccos(o_z / math.sqrt(o_x**2 + o_y**2 + o_z**2))
-        cam_phi = None
+        theta = np.arccos(o_z / math.sqrt(o_x**2 + o_y**2 + o_z**2))
+        phi = None
         if o_x > 0:
-            cam_phi = np.arctan(o_y / o_x)
+            phi = np.arctan(o_y / o_x)
         elif o_x < 0 and o_y > 0:
-            cam_phi = np.arctan(o_y / o_x) + math.pi
+            phi = np.arctan(o_y / o_x) + math.pi
         elif o_x < 0 and o_y < 0:
-            cam_phi = np.arctan(o_y / o_x) - math.pi
-        assert(cam_phi is not None)
+            phi = np.arctan(o_y / o_x) - math.pi
+        elif x == 0 and y > 0:
+            phi = math.pi / 2
+        elif x == 0 and y < 0:
+            phi = -math.pi / 2
+        elif x == 0 and y == 0:
+            raise Exception("x and y cannot both be 0 to convert into spherical coordinates")
+        assert(phi is not None)
+
+        # ensure that all angles are between 0 and 360 degrees
+        if phi < 0:
+            phi += (2 * math.pi)
         
-        x = 0.1 if cam_x == 0 else lp
-        y = 0.1 if cam_y == 0 else wp
-        z = 0.1 if cam_z == 0 else hp
-        x0.extend(x, y, z, cam_theta, cam_phi)
+        cam_x = cam[0]
+        cam_y = cam[1]
+        cam_z = cam[2]
+
+        x = delta_l if cam_x == 0 else l - delta_l 
+        y = delta_w if cam_y == 0 else w - delta_w
+        z = delta_h if cam_z == 0 else h - delta_h
+        x0.extend([x, y, z, theta, phi])
 
     return x0
