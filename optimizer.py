@@ -3,12 +3,14 @@ from math import sqrt
 import numpy as np
 from scipy.optimize import Bounds, minimize, NonlinearConstraint
 
-# FOV range (a.k.a height of the cone)
-fov_range = 5
+# FOV lower bound (objects must be at least this far to be seen)
+fov_lower_bound = 1
+# FOV upper bound a.k.a height of the cone (objects further than this are out of range)
+fov_upper_bound = 5
 # FOV degree (a.k.a angle between cone axis and slant)
 fov_degree = 50
 # FOV base radius (a.k.a radius of the base of the cone)
-fov_base_radius = fov_range * np.tan(np.deg2rad(fov_degree))
+fov_base_radius = fov_upper_bound * np.tan(np.deg2rad(fov_degree))
 
 # dimensions of V (in m)
 V_x = 3.98
@@ -78,10 +80,10 @@ def in_fov(pos_vec, orientation_vec, grid_point):
     # project t2p onto the orientation vector to find out how far down the cone (from the tip) the point lies
     cone_dist = np.dot(tip_to_point, orientation_vec)
 
-    if cone_dist < 0 or cone_dist > fov_range:
+    if cone_dist < fov_lower_bound or cone_dist > fov_upper_bound:
         return False
 
-    radius_at_cone_dist = (cone_dist / fov_range) * fov_base_radius
+    radius_at_cone_dist = (cone_dist / fov_upper_bound) * fov_base_radius
     proj_of_point_onto_axis = cone_dist * orientation_vec
     dist_from_axis = np.linalg.norm(tip_to_point - proj_of_point_onto_axis)
 
