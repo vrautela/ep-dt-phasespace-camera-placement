@@ -25,8 +25,89 @@ N = 8
 NUM_VAR = 5
 
 # the scale of the grid
-epsilon = 0.2
+epsilon = 0.5
 
+
+def gdop_objective_function(x):
+    total = 0
+
+    cam_positions = []
+    for i in range(N):
+        cam_start = i * NUM_VAR
+        cam_positions.append(x[cam_start])
+        cam_positions.append(x[cam_start+1])
+        cam_positions.append(x[cam_start+2])
+
+    # loop over all points in the grid defined by cutting V every epsilon meters
+    n_x = int(V_x / epsilon)
+    n_y = int(V_y / epsilon)
+    n_z = int(V_z / epsilon)
+    for a in range(n_x):
+        p_x = epsilon * a 
+        for b in range(n_y):
+            p_y = epsilon * b
+            for c in range(n_z):
+                p_z = epsilon * c
+                grid_point = np.array([p_x, p_y, p_z])
+
+                total += gdop(cam_positions, grid_point) 
+
+                # reachable_cams = []
+                # # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
+                # fov_count = 0
+                # for i in range(N):
+                #     cam_start = i * NUM_VAR
+                #     cam_x = x[cam_start]
+                #     cam_y = x[cam_start+1]
+                #     cam_z = x[cam_start+2]
+                #     cam_theta = x[cam_start+3]
+                #     cam_phi = x[cam_start+4]
+
+                #     pos_vec = np.array([cam_x, cam_y, cam_z])
+                #     # compute the unit vector defining the orientation based on the angles in spherical coords
+                #     orientation_x = np.cos(cam_phi) * np.sin(cam_theta)
+                #     orientation_y = np.sin(cam_phi) * np.sin(cam_theta)
+                #     orientation_z = np.cos(cam_theta)
+                #     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
+
+                #     if in_fov(pos_vec, orientation_vec, grid_point):
+                #         fov_count += 1
+                #         reachable_cams.extend([cam_x, cam_y, cam_z])
+
+                # if fov_count >= 2:
+                #     total += gdop(reachable_cams, grid_point)
+                # else:
+                #     total += K
+    return total
+
+
+# TODO: write tests for gdop
+# PRECONDITION: n >= 2
+def gdop(sats, receiver):
+    x = receiver[0]
+    y = receiver[1]
+    z = receiver[2]
+
+    pre_A = []
+    NUM_SAT_VAR = 3
+
+    n = len(sats) // NUM_SAT_VAR
+    for i in range(n):
+        sat_start = i * NUM_SAT_VAR 
+        x_i = sats[sat_start]
+        y_i = sats[sat_start+1]
+        z_i = sats[sat_start+2]
+        R_i = sqrt((x_i - x)**2 + (y_i - y)**2 + (z_i - z)**2)
+        # TODO: how to properly handle the case of a satellite being directly on a receiver?
+        if R_i == 0:
+            continue
+        else:
+            ith_vec = [(x_i - x)/R_i, (y_i - y)/R_i, (z_i - z)/R_i, -1]
+        pre_A.append(ith_vec)
+        
+    A = np.array(pre_A)
+    Q = np.linalg.pinv(np.matmul(A.T, A))
+    return sqrt(np.trace(Q))
 
 # return the number of points that lie in the FOV of at least two cameras
 def objective_function(x):
@@ -63,14 +144,11 @@ def objective_function(x):
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        # print("in fov")
                         fov_count += 1
 
                     if fov_count >= 2:
-                        # print("more than 2")
                         total += 1
                         break
-    # TODO: be careful with the sign of total (depending on whether max'ing or min'ing the obj. func.) 
     return -total
 
 
@@ -130,12 +208,12 @@ def main():
 
     print("minimizing")
     # res = minimize(objective_function, x0, bounds=bounds)
-    res = minimize(objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
+    res = minimize(gdop_objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)
 
     f_value = res.fun
     num_points = int(V_x / epsilon) * int(V_y / epsilon) * int(V_z / epsilon)
-    print(str(-f_value) + " out of " + str(num_points))
+    # print(str(-f_value) + " out of " + str(num_points))
 
 
 if __name__ == '__main__':
