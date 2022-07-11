@@ -27,6 +27,9 @@ NUM_VAR = 5
 # the scale of the grid
 epsilon = 0.5
 
+# penalty for points being out of view
+K = 100
+
 
 def gdop_objective_function(x):
     total = 0
@@ -38,10 +41,13 @@ def gdop_objective_function(x):
         cam_positions.append(x[cam_start+1])
         cam_positions.append(x[cam_start+2])
 
+
     # loop over all points in the grid defined by cutting V every epsilon meters
     n_x = int(V_x / epsilon)
     n_y = int(V_y / epsilon)
     n_z = int(V_z / epsilon)
+    num_seen_points = 0
+    total_points = n_x * n_y * n_z
     for a in range(n_x):
         p_x = epsilon * a 
         for b in range(n_y):
@@ -50,35 +56,40 @@ def gdop_objective_function(x):
                 p_z = epsilon * c
                 grid_point = np.array([p_x, p_y, p_z])
 
-                total += gdop(cam_positions, grid_point) 
+                reachable_cams = []
+                # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
+                fov_count = 0
+                for i in range(N):
+                    cam_start = i * NUM_VAR
+                    cam_x = x[cam_start]
+                    cam_y = x[cam_start+1]
+                    cam_z = x[cam_start+2]
+                    cam_theta = x[cam_start+3]
+                    cam_phi = x[cam_start+4]
 
-                # reachable_cams = []
-                # # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
-                # fov_count = 0
-                # for i in range(N):
-                #     cam_start = i * NUM_VAR
-                #     cam_x = x[cam_start]
-                #     cam_y = x[cam_start+1]
-                #     cam_z = x[cam_start+2]
-                #     cam_theta = x[cam_start+3]
-                #     cam_phi = x[cam_start+4]
+                    pos_vec = np.array([cam_x, cam_y, cam_z])
+                    # compute the unit vector defining the orientation based on the angles in spherical coords
+                    orientation_x = np.cos(cam_phi) * np.sin(cam_theta)
+                    orientation_y = np.sin(cam_phi) * np.sin(cam_theta)
+                    orientation_z = np.cos(cam_theta)
+                    orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
-                #     pos_vec = np.array([cam_x, cam_y, cam_z])
-                #     # compute the unit vector defining the orientation based on the angles in spherical coords
-                #     orientation_x = np.cos(cam_phi) * np.sin(cam_theta)
-                #     orientation_y = np.sin(cam_phi) * np.sin(cam_theta)
-                #     orientation_z = np.cos(cam_theta)
-                #     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
+                    if in_fov(pos_vec, orientation_vec, grid_point):
+                        fov_count += 1
+                        reachable_cams.extend([cam_x, cam_y, cam_z])
 
-                #     if in_fov(pos_vec, orientation_vec, grid_point):
-                #         fov_count += 1
-                #         reachable_cams.extend([cam_x, cam_y, cam_z])
-
-                # if fov_count >= 2:
-                #     total += gdop(reachable_cams, grid_point)
-                # else:
-                #     total += K
-    return total
+                if fov_count >= 2:
+                    total += gdop(reachable_cams, grid_point) 
+                    num_seen_points += 1
+    
+    # how to maximize coverage??
+    coverage = num_seen_points / total_points
+    # print('coverage: ', coverage)
+    penalty_factor = 1 / coverage
+    # print('penalty factor: ', penalty_factor)
+    obj = total * (penalty_factor ** 6)
+    # print('obj: ', obj)
+    return obj
 
 
 # TODO: write tests for gdop
@@ -204,6 +215,7 @@ def main():
     ]
     bounds = Bounds(lower_bounds, upper_bounds)
 
+    # NOTE: x0 is a list of floats because that is how one specifies upper and lower bounds using scipy's minimize
     x0 = gen_guess_box(V_x, V_y, V_z)
 
     print("minimizing")
@@ -214,6 +226,7 @@ def main():
     f_value = res.fun
     num_points = int(V_x / epsilon) * int(V_y / epsilon) * int(V_z / epsilon)
     # print(str(-f_value) + " out of " + str(num_points))
+    print(x0)
 
 
 if __name__ == '__main__':
