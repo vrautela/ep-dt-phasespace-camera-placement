@@ -27,9 +27,6 @@ NUM_VAR = 5
 # the scale of the grid
 epsilon = 0.5
 
-# penalty for points being out of view
-K = 100
-
 
 def gdop_objective_function(x):
     total = 0
