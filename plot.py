@@ -1,6 +1,5 @@
 import matplotlib.pylab as plt
 import numpy as np
-import seaborn as sns
 from optimizer import in_fov
 
 # dimensions of V (in m)
@@ -60,48 +59,93 @@ def create_visibility_grid(x):
     return np.array(visibility_grid)
 
 
+# A heatmap that allows you to scroll through cross-sections along the y-axis
+class ScrollableHeatmap:
+    def __init__(self, ax, visibility_grid):
+        self.ax = ax
+        self.visibility_grid = visibility_grid
+
+        xlen, self.ylen, zlen = visibility_grid.shape
+        self.ind = self.ylen // 2
+        # orient the plot data so that the origin is at x = 0, z = 0
+        self.plot_data = np.transpose(self.visibility_grid[:, self.ind, :])[::-1]
+
+        row_labels = [i * epsilon for i in range(zlen - 1, -1, -1)] 
+        col_labels = [i * epsilon for i in range(xlen)] 
+
+        self.im, self.cbar = heatmap(self.plot_data, row_labels, col_labels, cmap="magma_r", cbarlabel="Number of overlapping FOVs")
+        self.ax.set_title(f'Camera visibility at Y = {self.ind * epsilon} m')
+
+    def on_scroll(self, event):
+        # print("%s %s" % (event.button, event.step))
+        if event.button == 'up':
+            self.ind = min(self.ind + 1, self.ylen - 1)
+        else:
+            self.ind = max(self.ind - 1, 0)
+        self.update()
+
+    def update_data(self):
+        self.plot_data = np.transpose(self.visibility_grid[:, self.ind, :])[::-1]
+
+    def update(self):
+        self.update_data()
+        self.im.set_data(self.plot_data)
+        self.ax.set_title(f'Camera visibility at Y = {self.ind * epsilon} m')
+        self.im.axes.figure.canvas.draw()
+
+
+def heatmap(data, row_labels, col_labels, ax=None,
+            cbar_kw={}, cbarlabel="", **kwargs):
+    """
+    Create a heatmap from a numpy array and two lists of labels.
+
+    Parameters
+    ----------
+    data
+        A 2D numpy array of shape (M, N).
+    row_labels
+        A list or array of length M with the labels for the rows.
+    col_labels
+        A list or array of length N with the labels for the columns.
+    ax
+        A `matplotlib.axes.Axes` instance to which the heatmap is plotted.  If
+        not provided, use current axes or create a new one.  Optional.
+    cbar_kw
+        A dictionary with arguments to `matplotlib.Figure.colorbar`.  Optional.
+    cbarlabel
+        The label for the colorbar.  Optional.
+    **kwargs
+        All other arguments are forwarded to `imshow`.
+    """
+
+    if not ax:
+        ax = plt.gca()
+
+    # Plot the heatmap
+    im = ax.imshow(data, **kwargs)
+
+    # Create colorbar
+    cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
+    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+
+    # Show all ticks and label them with the respective list entries.
+    ax.set_xticks(np.arange(data.shape[1]), labels=col_labels)
+    ax.set_yticks(np.arange(data.shape[0]), labels=row_labels)
+
+    # Turn spines off and create white grid.
+    ax.spines[:].set_visible(False)
+
+    return im, cbar
+
 
 def create_plots(solution):
-    '''
-    We need to loop over all of the points in the grid and create a multidimensional array
-    which associates each point in 3d space with the number of cameras that can see it
-
-    Then, following the image slicer example (https://matplotlib.org/stable/gallery/event_handling/image_slices_viewer.html)
-    and the colormap example (https://matplotlib.org/stable/tutorials/colors/colormap-manipulation.html)
-    I can create a tool that allows you to scroll through the slices and see
-    what the camera values are for each cross section
-    '''
-
-    # visibility grid is a 3d numpy array
     visibility_grid = create_visibility_grid(solution)
 
-    print('grid shape: ', visibility_grid.shape)
-    # for now just create a plot at midplane (y = 6)
-    xlen, ylen, zlen = visibility_grid.shape
-    # midplane data should be a 2d array (at y = 6)
-    midplane_data = visibility_grid[:, ylen // 2, :]
-
-    print('midplane data: ', midplane_data)
-
-    z_reversed_plot_data = np.transpose(midplane_data)
-    print('z reversed plot data: ', z_reversed_plot_data)
-    plot_data = z_reversed_plot_data[::-1]
-    print('plot data: ', plot_data)
-
     fig, ax = plt.subplots()
-    im = ax.imshow(plot_data, cmap="magma_r")
-    ax.set_xticks(np.arange(xlen), [i * epsilon for i in range(xlen)])
-    ax.set_yticks(np.arange(zlen), [i * epsilon for i in range(zlen - 1, -1, -1)])
-
-    cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel("Number of overlapping FOVs", rotation=-90, va="bottom")
-
-    ax.set_title('Camera visibility at Y = 6 m')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Z (m)')
+    heatmap = ScrollableHeatmap(ax, visibility_grid)
+    fig.canvas.mpl_connect('scroll_event', heatmap.on_scroll)
 
     plt.show()
-
 
 
 def main():
