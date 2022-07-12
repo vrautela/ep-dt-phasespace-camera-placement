@@ -73,7 +73,13 @@ class ScrollableHeatmap:
         row_labels = [i * epsilon for i in range(zlen - 1, -1, -1)] 
         col_labels = [i * epsilon for i in range(xlen)] 
 
-        self.im, self.cbar = heatmap(self.plot_data, row_labels, col_labels, cmap="magma_r", cbarlabel="Number of overlapping FOVs")
+        self.vmin = np.amin(self.visibility_grid)
+        self.vmax = np.amax(self.visibility_grid)
+
+        self.im, self.cbar = heatmap(
+                                self.plot_data, row_labels, col_labels, cmap="magma_r", 
+                                cbarlabel="Number of overlapping FOVs", vmin=self.vmin, vmax=self.vmax
+                            )
         self.ax.set_title(f'Camera visibility at Y = {self.ind * epsilon} m')
 
     def on_scroll(self, event):
@@ -86,6 +92,7 @@ class ScrollableHeatmap:
 
     def update_data(self):
         self.plot_data = np.transpose(self.visibility_grid[:, self.ind, :])[::-1]
+        # print(self.plot_data)
 
     def update(self):
         self.update_data()
@@ -149,14 +156,14 @@ def create_plots(solution):
 
 
 def main():
-    solution = [ 0.34519832,  1.0259704 ,  0.25396691,  1.29661232,  1.2120396 ,
-        0.34500489,  1.03120701,  2.76729332,  1.84616327,  1.20955543,
-        0.30413374, 11.41595725,  0.24936854,  1.2997024 ,  5.07884353,
-        0.30277722, 11.39593676,  2.72525332,  1.84084388,  5.07583847,
-        3.79446325,  1.01985884,  0.25066651,  1.29552767,  1.94118441,
-        3.79462174,  1.02350275,  2.76593641,  1.84739336,  1.94143476,
-        3.73833906, 11.41623886,  0.21123267,  1.29926624,  4.35031007,
-        3.75234813, 11.4249762 ,  2.71981602,  1.84278996,  4.40572014]
+    solution = [ 0.29325053,  0.89621842,  0.20718304,  1.31326803,  1.22090274,
+        0.31039543,  0.8481683 ,  2.75534156,  1.83696192,  1.21830154,
+        0.2630228 , 11.38533752,  0.10523411,  1.31462662,  5.06761237,
+        0.26859901, 11.44648558,  2.73377982,  1.83060974,  5.07310204,
+        3.78122786,  0.83937601,  0.22645622,  1.31596205,  1.93429507,
+        3.7918278 ,  0.89519463,  2.7728522 ,  1.83084825,  1.93776955,
+        3.75488049, 11.42912936,  0.19153263,  1.31884094,  4.36562724,
+        3.77140868, 11.40296266,  2.74248509,  1.83005218,  4.39598162]
     create_plots(solution)
 
 if __name__ == '__main__':
