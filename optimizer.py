@@ -40,9 +40,10 @@ def gdop_objective_function(x):
 
 
     # loop over all points in the grid defined by cutting V every epsilon meters
-    n_x = int(V_x / epsilon)
-    n_y = int(V_y / epsilon)
-    n_z = int(V_z / epsilon)
+    # add 1 to each of the dimensions
+    n_x = int(V_x / epsilon) + 1
+    n_y = int(V_y / epsilon) + 1
+    n_z = int(V_z / epsilon) + 1
     num_seen_points = 0
     total_points = n_x * n_y * n_z
     for a in range(n_x):
