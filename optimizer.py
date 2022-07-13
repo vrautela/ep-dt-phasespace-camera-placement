@@ -1,3 +1,4 @@
+from matplotlib.pyplot import grid
 from guesses import gen_guess_box
 from math import sqrt
 import numpy as np
@@ -27,8 +28,17 @@ NUM_VAR = 5
 # the scale of the grid
 epsilon = 0.5
 
+# the threshold below which we want cameras' GDOP values to lie
+thresh = 10
 
-def gdop_objective_function(x):
+
+def grid_dimensions(V_x, V_y, V_z):
+    n_x = int(V_x / epsilon) + 1
+    n_y = int(V_y / epsilon) + 1
+    n_z = int(V_z / epsilon) + 1
+    return n_x, n_y, n_z
+
+def gdop_threshold_objective_function(x):
     total = 0
 
     cam_positions = []
@@ -41,9 +51,7 @@ def gdop_objective_function(x):
 
     # loop over all points in the grid defined by cutting V every epsilon meters
     # add 1 to each of the dimensions
-    n_x = int(V_x / epsilon) + 1
-    n_y = int(V_y / epsilon) + 1
-    n_z = int(V_z / epsilon) + 1
+    n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
     num_seen_points = 0
     total_points = n_x * n_y * n_z
     for a in range(n_x):
@@ -77,16 +85,20 @@ def gdop_objective_function(x):
                         reachable_cams.extend([cam_x, cam_y, cam_z])
 
                 if fov_count >= 2:
-                    total += gdop(reachable_cams, grid_point) 
-                    num_seen_points += 1
+                    g = gdop(reachable_cams, grid_point)
+                    # num_seen_points += 1
+                    if g < thresh:
+                        total += 1
     
     # how to maximize coverage??
-    coverage = num_seen_points / total_points
+    # coverage = num_seen_points / total_points
     # print('coverage: ', coverage)
-    penalty_factor = 1 / coverage
+    # penalty_factor = 1 / coverage
     # print('penalty factor: ', penalty_factor)
-    obj = total * (penalty_factor ** 6)
+    # obj = total * (penalty_factor ** 6)
     # print('obj: ', obj)
+
+    obj = -total
     return obj
 
 
@@ -218,7 +230,7 @@ def main():
 
     print("minimizing")
     # res = minimize(objective_function, x0, bounds=bounds)
-    res = minimize(gdop_objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
+    res = minimize(gdop_threshold_objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)
 
     f_value = res.fun
