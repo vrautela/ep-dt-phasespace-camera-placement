@@ -1,12 +1,14 @@
 import matplotlib.pylab as plt
 import numpy as np
-from optimizer import in_fov
+from optimizer import gdop, grid_dimensions, in_fov
 
 # dimensions of V (in m)
 V_x = 3.98
 V_y = 12.03
 V_z = 2.9
 V = (V_x, V_y, V_z)
+
+n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
 
 # number of cameras
 N = 8
@@ -16,6 +18,55 @@ NUM_VAR = 5
 
 # the scale of the grid
 epsilon = 0.5
+
+
+def create_gdop_grid(x):
+    gdop_grid = []
+    for a in range(n_x):
+        p_x = epsilon * a 
+        gdop_plane = []
+        for b in range(n_y):
+            p_y = epsilon * b
+            gdop_row = []
+            for c in range(n_z):
+                p_z = epsilon * c
+                grid_point = np.array([p_x, p_y, p_z])
+
+                reachable_cams = []
+                # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
+                fov_count = 0
+                for i in range(N):
+                    cam_start = i * NUM_VAR
+                    cam_x = x[cam_start]
+                    cam_y = x[cam_start+1]
+                    cam_z = x[cam_start+2]
+                    cam_theta = x[cam_start+3]
+                    cam_phi = x[cam_start+4]
+
+                    pos_vec = np.array([cam_x, cam_y, cam_z])
+                    # compute the unit vector defining the orientation based on the angles in spherical coords
+                    orientation_x = np.cos(cam_phi) * np.sin(cam_theta)
+                    orientation_y = np.sin(cam_phi) * np.sin(cam_theta)
+                    orientation_z = np.cos(cam_theta)
+                    orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
+
+                    if in_fov(pos_vec, orientation_vec, grid_point):
+                        fov_count += 1
+                        reachable_cams.extend([cam_x, cam_y, cam_z])
+                
+                if fov_count >= 2:
+                    gdop_row.append(gdop(reachable_cams, grid_point))
+                else:
+                    gdop_row.append(np.NaN)
+
+            gdop_plane.append(gdop_row)
+        gdop_grid.append(gdop_plane)
+
+    # currently this grid has nans in it
+    return gdop_grid
+    # grid_with_nans = np.array(gdop_grid)
+    # return np.nan_to_num(grid_with_nans, nan=np.nanmax(grid_with_nans))
+
 
 def create_visibility_grid(x):
     # loop over all points in the grid defined by cutting V every epsilon meters
@@ -145,7 +196,7 @@ def heatmap(data, row_labels, col_labels, ax=None,
     return im, cbar
 
 
-def create_plots(solution):
+def create_heatmap_plot(solution):
     visibility_grid = create_visibility_grid(solution)
 
     fig, ax = plt.subplots()
@@ -164,7 +215,7 @@ def main():
         3.7918278 ,  0.89519463,  2.7728522 ,  1.83084825,  1.93776955,
         3.75488049, 11.42912936,  0.19153263,  1.31884094,  4.36562724,
         3.77140868, 11.40296266,  2.74248509,  1.83005218,  4.39598162]
-    create_plots(solution)
+    create_heatmap_plot(solution)
 
 if __name__ == '__main__':
     main()
