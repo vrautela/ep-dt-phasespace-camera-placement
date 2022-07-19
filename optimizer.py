@@ -1,3 +1,4 @@
+from random import triangular
 from guesses import gen_guess_box
 from math import sqrt
 import numpy as np
@@ -28,6 +29,14 @@ NUM_VAR = 5
 epsilon = 0.5
 
 
+def grid_dimensions(V_x, V_y, V_z):
+    n_x = int(V_x / epsilon) + 1
+    n_y = int(V_y / epsilon) + 1
+    n_z = int(V_z / epsilon) + 1
+
+    return n_x, n_y, n_z
+
+
 def gdop_objective_function(x):
     total = 0
 
@@ -41,9 +50,7 @@ def gdop_objective_function(x):
 
     # loop over all points in the grid defined by cutting V every epsilon meters
     # add 1 to each of the dimensions
-    n_x = int(V_x / epsilon) + 1
-    n_y = int(V_y / epsilon) + 1
-    n_z = int(V_z / epsilon) + 1
+    n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
     num_seen_points = 0
     total_points = n_x * n_y * n_z
     for a in range(n_x):
@@ -118,14 +125,13 @@ def gdop(sats, receiver):
     Q = np.linalg.pinv(np.matmul(A.T, A))
     return sqrt(np.trace(Q))
 
+
 # return the number of points that lie in the FOV of at least two cameras
-def objective_function(x):
+def count_objective_function(x):
     total = 0
 
     # loop over all points in the grid defined by cutting V every epsilon meters
-    n_x = int(V_x / epsilon)
-    n_y = int(V_y / epsilon)
-    n_z = int(V_z / epsilon)
+    n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
     for a in range(n_x):
         p_x = epsilon * a 
         for b in range(n_y):
@@ -133,10 +139,10 @@ def objective_function(x):
             for c in range(n_z):
                 p_z = epsilon * c
                 grid_point = np.array([p_x, p_y, p_z])
-                # print(p_x, p_y, p_z)
 
-                fov_count = 0
-                # loop over each camera to see if the point at (p_x, p_y, p_z) lies in its FOV
+                # loop over each camera to see if the point at (p_x, p_y, p_z) lies in the FOVs of 
+                # two triangulable cameras (angle between them is between 40 and 140 degrees)
+                triangulable_cams = []
                 for i in range(N):
                     cam_start = i * NUM_VAR
                     cam_x = x[cam_start]
@@ -153,12 +159,40 @@ def objective_function(x):
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        fov_count += 1
+                        # check triangulability of this camera with all the other reachable ones
+                        # if triangulatable, then increment the total and break out of this loop
+                        # else, just add this camera to the reachable ones
+                        triangulable = False
+                        for cam in triangulable_cams:
+                            comp_pos_vec, comp_orientation_vec = cam[0], cam[1]
+                            # get vector from point to pos and point to comp_pos
+                            point_to_pos = np.subtract(pos_vec, grid_point)
+                            point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
+                            # compute angle between the two pos vectors (in degrees) and see if triangulable
+                            alpha = angle_between(point_to_pos, point_to_comp_pos)
 
-                    if fov_count >= 2:
-                        total += 1
-                        break
+                            # TODO: try varying the angle bounds
+                            if np.deg2rad(60) < alpha and alpha < np.deg2rad(120):
+                                triangulable = True
+                                break
+
+                        if triangulable:
+                            total += 1
+                            break
+                        else:
+                            triangulable_cams.append((pos_vec, orientation_vec))
+
     return -total
+
+
+
+def unit_vector(vector):
+    return vector / np.linalg.norm(vector)
+
+def angle_between(v1, v2):
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
 
 def in_fov(pos_vec, orientation_vec, grid_point):
@@ -218,7 +252,7 @@ def main():
 
     print("minimizing")
     # res = minimize(objective_function, x0, bounds=bounds)
-    res = minimize(gdop_objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
+    res = minimize(count_objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)
 
     f_value = res.fun
