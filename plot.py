@@ -206,6 +206,36 @@ def create_heatmap_plot(solution):
     plt.show()
 
 
+def create_3d_scatter_plot(solution):
+    # gdop_grid[x][y][z] == gdop value @ (x,y,z) || NaN
+    gdop_grid = create_gdop_grid(solution)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    xs = []
+    ys = []
+    zs = []
+    for a in range(n_x):
+        p_x = epsilon * a 
+        for b in range(n_y):
+            p_y = epsilon * b
+            for c in range(n_z):
+                p_z = epsilon * c
+                xs.append(p_x)
+                ys.append(p_y)
+                zs.append(p_z)
+                
+    ax.scatter(xs, ys, zs, c=gdop_grid.flatten())
+
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Z (m)')
+    ax.set_title('Title')
+
+    plt.show()
+
+
 def main():
     solution = [ 0.29325053,  0.89621842,  0.20718304,  1.31326803,  1.22090274,
         0.31039543,  0.8481683 ,  2.75534156,  1.83696192,  1.21830154,
@@ -215,7 +245,7 @@ def main():
         3.7918278 ,  0.89519463,  2.7728522 ,  1.83084825,  1.93776955,
         3.75488049, 11.42912936,  0.19153263,  1.31884094,  4.36562724,
         3.77140868, 11.40296266,  2.74248509,  1.83005218,  4.39598162]
-    create_heatmap_plot(solution)
+    create_3d_scatter_plot(solution)
 
 if __name__ == '__main__':
     main()
