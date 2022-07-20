@@ -62,10 +62,7 @@ def create_gdop_grid(x):
             gdop_plane.append(gdop_row)
         gdop_grid.append(gdop_plane)
 
-    # currently this grid has nans in it
-    return gdop_grid
-    # grid_with_nans = np.array(gdop_grid)
-    # return np.nan_to_num(grid_with_nans, nan=np.nanmax(grid_with_nans))
+    return np.array(gdop_grid)
 
 
 def create_visibility_grid(x):
@@ -209,6 +206,7 @@ def create_heatmap_plot(solution):
 def create_3d_scatter_plot(solution):
     # gdop_grid[x][y][z] == gdop value @ (x,y,z) || NaN
     gdop_grid = create_gdop_grid(solution)
+    # print(gdop_grid)
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -226,25 +224,66 @@ def create_3d_scatter_plot(solution):
                 ys.append(p_y)
                 zs.append(p_z)
                 
-    ax.scatter(xs, ys, zs, c=gdop_grid.flatten())
+    print(np.nanmax(gdop_grid))
+    print(np.nanmin(gdop_grid))
+    print(np.nanmean(gdop_grid))
+    print(np.nanstd(gdop_grid))
+
+    clipped_grid = replace_outliers_with_nan(gdop_grid.flatten())
+
+    print()
+    print(np.nanmax(clipped_grid))
+    print(np.nanmin(clipped_grid))
+    print(np.nanmean(clipped_grid))
+    print(np.nanstd(clipped_grid))
+
+    mi = np.nanmin(clipped_grid)
+    ma = np.nanmax(clipped_grid)
+    c = (clipped_grid - mi) / (ma - mi)
+
+    x_nan = []
+    y_nan = []
+    z_nan = []
+    x_num = []
+    y_num = []
+    z_num = []
+    c_num = []
+    for i in range(len(c)):
+        if not np.isfinite(c[i]):
+            x_nan.append(xs[i])
+            y_nan.append(ys[i])
+            z_nan.append(zs[i])
+        else:
+            x_num.append(xs[i])
+            y_num.append(ys[i])
+            z_num.append(zs[i])
+            c_num.append(c[i])
+
+    p1 = ax.scatter(x_nan, y_nan, z_nan, color='pink', alpha=1)
+    p2 = ax.scatter(x_num, y_num, z_num, c=c_num, alpha=1, cmap='magma')
 
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
-    ax.set_title('Title')
+    # title includes the original min/max of the gdop grid (so colorbar is fraction of that max)
+    ax.set_title(f'GDOP values w/ min={mi} and max={ma}') 
+
+    fig.colorbar(p2, ax=ax)
+
 
     plt.show()
 
 
+def replace_outliers_with_nan(data, num_std_devs = 2):
+    print(f'num replaced: {len(data[abs(data - np.nanmean(data)) > num_std_devs * np.nanstd(data)])}')
+    data[abs(data - np.nanmean(data)) > num_std_devs * np.nanstd(data)] = np.nan
+    return data
+
+
 def main():
-    solution = [ 0.29325053,  0.89621842,  0.20718304,  1.31326803,  1.22090274,
-        0.31039543,  0.8481683 ,  2.75534156,  1.83696192,  1.21830154,
-        0.2630228 , 11.38533752,  0.10523411,  1.31462662,  5.06761237,
-        0.26859901, 11.44648558,  2.73377982,  1.83060974,  5.07310204,
-        3.78122786,  0.83937601,  0.22645622,  1.31596205,  1.93429507,
-        3.7918278 ,  0.89519463,  2.7728522 ,  1.83084825,  1.93776955,
-        3.75488049, 11.42912936,  0.19153263,  1.31884094,  4.36562724,
-        3.77140868, 11.40296266,  2.74248509,  1.83005218,  4.39598162]
+    solution = [0.199, 0.6015, 0.145, 1.3458070930584491, 1.2512918379998423, 0.199, 0.6015, 2.755, 1.795785560531344, 1.2512918379998423, 0.199, 11.4285, 0.145, 1.3458070930584491, 5.031893469179744, 0.199, 11.4285, 2.755, 1.795785560531344, 5.031893469179744, 3.781, 0.6015, 0.145, 1.3458070930584491, 1.8903008155899508, 3.781,
+    0.6015, 2.755, 1.795785560531344, 1.8903008155899508, 3.781, 11.4285, 0.145, 1.3458070930584491, 4.392884491589635, 3.781, 11.4285, 2.755, 1.795785560531344,
+    4.392884491589635]
     create_3d_scatter_plot(solution)
 
 if __name__ == '__main__':
