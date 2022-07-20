@@ -1,3 +1,4 @@
+from matplotlib.colors import ListedColormap
 import matplotlib.pylab as plt
 import numpy as np
 from optimizer import gdop, grid_dimensions, in_fov
@@ -206,7 +207,6 @@ def create_heatmap_plot(solution):
 def create_3d_scatter_plot(solution):
     # gdop_grid[x][y][z] == gdop value @ (x,y,z) || NaN
     gdop_grid = create_gdop_grid(solution)
-    # print(gdop_grid)
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -266,9 +266,10 @@ def create_3d_scatter_plot(solution):
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
     # title includes the original min/max of the gdop grid (so colorbar is fraction of that max)
-    ax.set_title(f'GDOP values w/ min={mi} and max={ma}') 
+    ax.set_title(f'GDOP values w/ min={round(mi, 2)} and max={round(ma, 2)}') 
 
-    fig.colorbar(p2, ax=ax)
+    cbar = fig.colorbar(p2, ax=ax)
+    cbar.set_label('% of max GDOP value')
 
 
     plt.show()
@@ -280,11 +281,94 @@ def replace_outliers_with_nan(data, num_std_devs = 2):
     return data
 
 
+def create_discrete_3d_scatter_plot(solution):
+    gdop_grid = create_gdop_grid(solution)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    xs = []
+    ys = []
+    zs = []
+    for a in range(n_x):
+        p_x = epsilon * a 
+        for b in range(n_y):
+            p_y = epsilon * b
+            for c in range(n_z):
+                p_z = epsilon * c
+                xs.append(p_x)
+                ys.append(p_y)
+                zs.append(p_z)
+                
+    print(np.nanmax(gdop_grid))
+    print(np.nanmin(gdop_grid))
+    print(np.nanmean(gdop_grid))
+    print(np.nanstd(gdop_grid))
+
+    clipped_grid = gdop_grid.flatten()
+
+    print()
+    print(np.nanmax(clipped_grid))
+    print(np.nanmin(clipped_grid))
+    print(np.nanmean(clipped_grid))
+    print(np.nanstd(clipped_grid))
+
+    c = clipped_grid
+
+    x_nan = []
+    y_nan = []
+    z_nan = []
+    x_num = []
+    y_num = []
+    z_num = []
+    c_num = []
+    for i in range(len(c)):
+        if not np.isfinite(c[i]):
+            x_nan.append(xs[i])
+            y_nan.append(ys[i])
+            z_nan.append(zs[i])
+        else:
+            x_num.append(xs[i])
+            y_num.append(ys[i])
+            z_num.append(zs[i])
+            if c[i] < 2:
+                c_num.append('black')
+            elif c[i] < 5:
+                c_num.append('blue')
+            elif c[i] < 10:
+                c_num.append('yellow')
+            elif c[i] < 20:
+                c_num.append('orange')
+            else:
+                c_num.append('red')
+
+
+    p1 = ax.scatter(x_nan, y_nan, z_nan, color='pink', alpha=1)
+    p2 = ax.scatter(x_num, y_num, z_num, c=c_num, alpha=1)
+
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Z (m)')
+    # title includes the original min/max of the gdop grid (so colorbar is fraction of that max)
+    ax.set_title(f'GDOP values')
+
+    # TODO: add key/legend to the plot
+
+
+    plt.show()
+
+
 def main():
-    solution = [0.199, 0.6015, 0.145, 1.3458070930584491, 1.2512918379998423, 0.199, 0.6015, 2.755, 1.795785560531344, 1.2512918379998423, 0.199, 11.4285, 0.145, 1.3458070930584491, 5.031893469179744, 0.199, 11.4285, 2.755, 1.795785560531344, 5.031893469179744, 3.781, 0.6015, 0.145, 1.3458070930584491, 1.8903008155899508, 3.781,
-    0.6015, 2.755, 1.795785560531344, 1.8903008155899508, 3.781, 11.4285, 0.145, 1.3458070930584491, 4.392884491589635, 3.781, 11.4285, 2.755, 1.795785560531344,
-    4.392884491589635]
-    create_3d_scatter_plot(solution)
+    solution = [ 0.05072372,  0.1190711 ,  2.8462539 ,  0.30686313,  1.38241592,
+        0.        ,  0.41579005,  2.89706099,  2.37037856,  0.97193685,
+        0.24875489,  3.18422597,  0.        ,  0.81431421,  5.27934156,
+        0.        , 11.65775311,  2.73264182,  2.29113895,  5.31613848,
+        3.98      ,  0.70949535,  1.04151703,  1.16329223,  2.37786184,
+        3.41840009, 10.21011314,  2.71691716,  1.77366824,  3.02438625,
+        3.98      ,  0.        ,  0.        ,  1.57079633,  4.71238898,
+        3.98      , 11.27869344,  2.05860516,  2.47062423,  4.71238898]
+    create_discrete_3d_scatter_plot(solution)
+    # create_3d_scatter_plot(solution)
 
 if __name__ == '__main__':
     main()
