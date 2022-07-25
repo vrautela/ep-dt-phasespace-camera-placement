@@ -68,9 +68,7 @@ def create_gdop_grid(x):
 
 def create_visibility_grid(x):
     # loop over all points in the grid defined by cutting V every epsilon meters
-    n_x = int(V_x / epsilon)
-    n_y = int(V_y / epsilon)
-    n_z = int(V_z / epsilon)
+    n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
 
     visibility_grid = []
     for a in range(n_x):
@@ -200,6 +198,38 @@ def create_heatmap_plot(solution):
     fig, ax = plt.subplots()
     heatmap = ScrollableHeatmap(ax, visibility_grid)
     fig.canvas.mpl_connect('scroll_event', heatmap.on_scroll)
+
+    plt.show()
+
+
+def create_visibility_3d_scatter_plot(solution):
+    visibility_grid = create_visibility_grid(solution)
+
+    xs = []
+    ys = []
+    zs = []
+    for a in range(n_x):
+        p_x = epsilon * a 
+        for b in range(n_y):
+            p_y = epsilon * b
+            for c in range(n_z):
+                p_z = epsilon * c
+                xs.append(p_x)
+                ys.append(p_y)
+                zs.append(p_z)
+    
+    v = visibility_grid.flatten()
+    c = []
+    for el in v:
+        if el >= 2:
+            c.append('red') 
+        else:
+            c.append('black')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    p = ax.scatter(xs, ys, zs, c=c, alpha=1)
 
     plt.show()
 
@@ -359,16 +389,15 @@ def create_discrete_3d_scatter_plot(solution):
 
 
 def main():
-    solution = [ 0.05072372,  0.1190711 ,  2.8462539 ,  0.30686313,  1.38241592,
-        0.        ,  0.41579005,  2.89706099,  2.37037856,  0.97193685,
-        0.24875489,  3.18422597,  0.        ,  0.81431421,  5.27934156,
-        0.        , 11.65775311,  2.73264182,  2.29113895,  5.31613848,
-        3.98      ,  0.70949535,  1.04151703,  1.16329223,  2.37786184,
-        3.41840009, 10.21011314,  2.71691716,  1.77366824,  3.02438625,
-        3.98      ,  0.        ,  0.        ,  1.57079633,  4.71238898,
-        3.98      , 11.27869344,  2.05860516,  2.47062423,  4.71238898]
+    solution = [ 0.37597045,  0.62121267,  2.14354076,  1.37708617,  1.39176515,
+        0.24869829,  0.52220901,  0.82194013,  2.1058068 ,  1.42624408,
+        0.06571993,  4.36523332,  0.1797022 ,  0.87012808,  5.4404979 ,
+        2.06885228, 11.53114843,  2.9       ,  2.50041449,  5.08825306,
+        3.93767348,  7.43242536,  1.82419748,  1.38450349,  2.79576216,
+        3.86625779,  7.83607222,  1.01520172,  3.12414109,  2.81803416,
+        3.78742161,  4.15166977,  0.04847863,  1.57079633,  4.48238249,
+        3.94588399, 11.79763269,  2.66707242,  2.15991132,  3.79587495]
     create_discrete_3d_scatter_plot(solution)
-    # create_3d_scatter_plot(solution)
 
 if __name__ == '__main__':
     main()

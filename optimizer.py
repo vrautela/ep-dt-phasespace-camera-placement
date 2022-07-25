@@ -1,5 +1,6 @@
 from random import triangular
 from guesses import gen_guess_box
+import math
 from math import sqrt
 import numpy as np
 from scipy.optimize import Bounds, minimize, NonlinearConstraint
@@ -126,12 +127,15 @@ def gdop(sats, receiver):
     return sqrt(np.trace(Q))
 
 
-# return the number of points that lie in the FOV of at least two cameras
+# return the value of the objective function calculated based on the number of points
+# that lie in the FOV of at least two cameras that are sufficiently triangulable
 def count_objective_function(x):
     total = 0
 
     # loop over all points in the grid defined by cutting V every epsilon meters
     n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
+    total_points = n_x * n_y * n_z
+    num_seen_points = 0
     for a in range(n_x):
         p_x = epsilon * a 
         for b in range(n_y):
@@ -143,6 +147,7 @@ def count_objective_function(x):
                 # loop over each camera to see if the point at (p_x, p_y, p_z) lies in the FOVs of 
                 # two triangulable cameras (angle between them is between 40 and 140 degrees)
                 triangulable_cams = []
+                fov_count = 0
                 for i in range(N):
                     cam_start = i * NUM_VAR
                     cam_x = x[cam_start]
@@ -159,6 +164,7 @@ def count_objective_function(x):
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
+                        fov_count += 1
                         # check triangulability of this camera with all the other reachable ones
                         # if triangulatable, then increment the total and break out of this loop
                         # else, just add this camera to the reachable ones
@@ -172,7 +178,7 @@ def count_objective_function(x):
                             alpha = angle_between(point_to_pos, point_to_comp_pos)
 
                             # TODO: try varying the angle bounds
-                            if np.deg2rad(60) < alpha and alpha < np.deg2rad(120):
+                            if 40 < alpha and alpha < 140:
                                 triangulable = True
                                 break
 
@@ -182,17 +188,27 @@ def count_objective_function(x):
                         else:
                             triangulable_cams.append((pos_vec, orientation_vec))
 
-    return -total
+                if fov_count >= 2:
+                    num_seen_points += 1
 
+    coverage = num_seen_points / total_points
+    obj = -sigmoid(total) * coverage
+    # obj can range from -1 to 0
+    return obj
+
+
+def sigmoid(x):
+    return 1/(1 + math.exp(-x))
 
 
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
 
+# return angle between vectors v1 and v2 IN DEGREES
 def angle_between(v1, v2):
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
-    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+    return np.rad2deg(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
 
 
 def in_fov(pos_vec, orientation_vec, grid_point):
@@ -258,7 +274,6 @@ def main():
     f_value = res.fun
     num_points = int(V_x / epsilon) * int(V_y / epsilon) * int(V_z / epsilon)
     # print(str(-f_value) + " out of " + str(num_points))
-    print(x0)
 
 
 if __name__ == '__main__':
