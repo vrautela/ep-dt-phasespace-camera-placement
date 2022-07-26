@@ -5,7 +5,7 @@ from optimizer import gdop
 # I need to create a fixed camera, a fixed point, and a camera that moves around the scene
 
 
-c1 = [3, 0, 0, 90, 0] 
+c1 = [3, 0, 0, 90, 180] 
 p = (0, 0, 0)
 
 x = []
