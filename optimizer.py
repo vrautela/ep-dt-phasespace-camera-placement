@@ -190,7 +190,7 @@ def gdop(sats, receiver):
         
     A = np.array(pre_A)
     A_times_transpose = np.matmul(A.T, A)
-    Q = np.linalg.pinv(A_times_transpose)
+    Q = np.linalg.inv(A_times_transpose)
     return sqrt(np.trace(Q))
 
 
