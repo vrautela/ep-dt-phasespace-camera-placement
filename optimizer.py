@@ -38,6 +38,72 @@ def grid_dimensions(V_x, V_y, V_z):
     return n_x, n_y, n_z
 
 
+def average_reciprocal_gdop(x):
+    total = 0
+
+    # loop over all points in the grid defined by cutting V every epsilon meters
+    n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
+    for a in range(n_x):
+        p_x = epsilon * a 
+        for b in range(n_y):
+            p_y = epsilon * b
+            for c in range(n_z):
+                p_z = epsilon * c
+                grid_point = np.array([p_x, p_y, p_z])
+
+                # loop over each camera to see if the point at (p_x, p_y, p_z) lies in the FOVs of 
+                # two triangulable cameras (angle between them is between 40 and 140 degrees)
+                triangulable_cams = []
+                reachable_cams = []
+                for i in range(N):
+                    cam_start = i * NUM_VAR
+                    cam_x = x[cam_start]
+                    cam_y = x[cam_start+1]
+                    cam_z = x[cam_start+2]
+                    cam_theta = x[cam_start+3]
+                    cam_phi = x[cam_start+4]
+
+                    pos_vec = np.array([cam_x, cam_y, cam_z])
+                    # compute the unit vector defining the orientation based on the angles in spherical coords
+                    orientation_x = np.cos(cam_phi) * np.sin(cam_theta)
+                    orientation_y = np.sin(cam_phi) * np.sin(cam_theta)
+                    orientation_z = np.cos(cam_theta)
+                    orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
+
+                    if in_fov(pos_vec, orientation_vec, grid_point):
+                        reachable_cams.extend([cam_x, cam_y, cam_z])
+
+                        # check triangulability of this camera with all the other reachable ones
+                        triangulable = False
+                        for cam in triangulable_cams:
+                            comp_pos_vec, comp_orientation_vec = cam[0], cam[1]
+                            # get vector from point to pos and point to comp_pos
+                            point_to_pos = np.subtract(pos_vec, grid_point)
+                            point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
+                            # compute angle between the two pos vectors (in degrees) and see if triangulable
+                            alpha = angle_between(point_to_pos, point_to_comp_pos)
+
+                            # TODO: try varying the angle bounds
+                            if 40 < alpha and alpha < 140:
+                                triangulable = True
+                                break
+
+                        if triangulable:
+                            # here I should be adding (1/GDOP)*(epsilon^3) to the total
+                            g = gdop(reachable_cams, grid_point)
+                            f = 1/g
+                            total += (f * (epsilon ** 3))
+                            break
+                        else:
+                            triangulable_cams.append((pos_vec, orientation_vec))
+
+    volume = V_x * V_y * V_z 
+    # we make objective negative so the function can be minimized
+    obj = -total / volume
+    return obj
+
+
+
 def gdop_objective_function(x):
     total = 0
 
@@ -123,7 +189,8 @@ def gdop(sats, receiver):
         pre_A.append(ith_vec)
         
     A = np.array(pre_A)
-    Q = np.linalg.pinv(np.matmul(A.T, A))
+    A_times_transpose = np.matmul(A.T, A)
+    Q = np.linalg.pinv(A_times_transpose)
     return sqrt(np.trace(Q))
 
 
@@ -237,44 +304,36 @@ def main():
     4. Run the optimization routine
     '''
 
-    # the positions can't be less than 0, and the unit vec components can't be less than -1
-    # lower_bounds = [0, 0, 0, 0, 0] * N
-    # the positions can't be greater than the dimensions of V, and the unit vec components can't be greater than 1
-    # upper_bounds = [V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(360)] * N
-    lower_bounds = [
-        0, 0, 0, np.deg2rad(0), np.deg2rad(0),
-        0, 0, 0, np.deg2rad(90), np.deg2rad(0),
-        0, 0, 0, np.deg2rad(0), np.deg2rad(270),
-        0, 0, 0, np.deg2rad(90), np.deg2rad(270),
-        0, 0, 0, np.deg2rad(0), np.deg2rad(90),
-        0, 0, 0, np.deg2rad(90), np.deg2rad(90),
-        0, 0, 0, np.deg2rad(0), np.deg2rad(180),
-        0, 0, 0, np.deg2rad(90), np.deg2rad(180),
-    ]
-    upper_bounds = [
-        V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(90),
-        V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(90),
-        V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(360),
-        V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(360),
-        V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(180),
-        V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(180),
-        V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(270),
-        V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(270),
-    ]
+    # Spherical coordinates with azimuthal angle theta and polar angle theta
+    lower_bounds = [0, 0, 0, 0, 0] * N
+    upper_bounds = [V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(360)] * N
+    # lower_bounds = [
+    #     0, 0, 0, np.deg2rad(0), np.deg2rad(0),
+    #     0, 0, 0, np.deg2rad(90), np.deg2rad(0),
+    #     0, 0, 0, np.deg2rad(0), np.deg2rad(270),
+    #     0, 0, 0, np.deg2rad(90), np.deg2rad(270),
+    #     0, 0, 0, np.deg2rad(0), np.deg2rad(90),
+    #     0, 0, 0, np.deg2rad(90), np.deg2rad(90),
+    #     0, 0, 0, np.deg2rad(0), np.deg2rad(180),
+    #     0, 0, 0, np.deg2rad(90), np.deg2rad(180),
+    # ]
+    # upper_bounds = [
+    #     V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(90),
+    #     V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(90),
+    #     V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(360),
+    #     V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(360),
+    #     V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(180),
+    #     V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(180),
+    #     V_x, V_y, V_z, np.deg2rad(90), np.deg2rad(270),
+    #     V_x, V_y, V_z, np.deg2rad(180), np.deg2rad(270),
+    # ]
     bounds = Bounds(lower_bounds, upper_bounds)
 
-    # NOTE: x0 is a list of floats because that is how one specifies upper and lower bounds using scipy's minimize
     x0 = gen_guess_box(V_x, V_y, V_z)
 
     print("minimizing")
-    # res = minimize(objective_function, x0, bounds=bounds)
-    res = minimize(count_objective_function, x0, bounds=bounds, options={"eps":0.1, "disp":True})
+    res = minimize(average_reciprocal_gdop, x0, bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)
-
-    f_value = res.fun
-    num_points = int(V_x / epsilon) * int(V_y / epsilon) * int(V_z / epsilon)
-    # print(str(-f_value) + " out of " + str(num_points))
-
 
 if __name__ == '__main__':
     main()
