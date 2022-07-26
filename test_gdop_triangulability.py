@@ -19,8 +19,8 @@ for alpha in range(360):
     c2 = [3 * np.cos(np.deg2rad(alpha)), 3 * np.sin(np.deg2rad(alpha)), 0, 90, phi]
 
     cams = []
-    cams.extend(c1)
-    cams.extend(c2)
+    cams.extend([c1[0], c1[1], c1[2]]) 
+    cams.extend([c2[0], c2[1], c2[2]]) 
 
     x.append(alpha)
     y.append(gdop(cams, p))
