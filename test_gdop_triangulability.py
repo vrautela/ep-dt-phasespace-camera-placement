@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
+from math import sqrt
 import numpy as np
-from optimizer import gdop
+from optimizer import angle_between, sigmoid
+from scipy.optimize import Bounds, minimize
 # Test of GDOP vs triangulability metrics
 
 
@@ -67,8 +69,171 @@ def three_cam_test():
     plt.show()
 
 
+V_x = 5
+V_y = 5
+N = 3
+NUM_VAR = 2
+epsilon = 0.5
+# TODO: need to implement a version of GDOP that uses just x,y coordinates
+def optimal_2d_three_cam_test():
+    lower_bounds = [-2.5] * N * NUM_VAR
+    upper_bounds = [2.5] * N * NUM_VAR
+    bounds = Bounds(lower_bounds, upper_bounds)
+
+    # initial guess contains just positions of c1, c2, and c3
+    # at theta1 = 0, theta2 = 90, theta3 = 180
+    x0 = [2, 0, 0, 2, -2, 0]
+    # x0 = [1, 0, 1, 2, -0.5, -2]
+
+    print("minimizing")
+    res = minimize(average_reciprocal_gdop, x0, bounds=bounds, options={"eps":0.1, "disp":True})
+    print(res)
+
+
+def count_objective_function(x):
+    total = 0
+
+    # loop over all points in the grid defined by cutting V every epsilon meters
+    n_x, n_y = grid_dimensions(V_x, V_y)
+    total_points = n_x * n_y
+    num_seen_points = 0
+    for a in range(n_x):
+        p_x = epsilon * a 
+        for b in range(n_y):
+            p_y = epsilon * b
+            grid_point = np.array([p_x, p_y])
+
+            # loop over each camera to see if the point at (p_x, p_y, p_z) lies in the FOVs of 
+            # two triangulable cameras (angle between them is between 40 and 140 degrees)
+            triangulable_cams = []
+            fov_count = 0
+            for i in range(N):
+                cam_start = i * NUM_VAR
+                cam_x = x[cam_start]
+                cam_y = x[cam_start+1]
+
+                pos_vec = np.array([cam_x, cam_y])
+                # compute the unit vector defining the orientation based on the angles in spherical coords
+
+                fov_count += 1
+                # check triangulability of this camera with all the other reachable ones
+                # if triangulatable, then increment the total and break out of this loop
+                # else, just add this camera to the reachable ones
+                triangulable = False
+                for cam in triangulable_cams:
+                    comp_pos_vec = cam
+                    # get vector from point to pos and point to comp_pos
+                    point_to_pos = np.subtract(pos_vec, grid_point)
+                    point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
+                    # compute angle between the two pos vectors (in degrees) and see if triangulable
+                    alpha = angle_between(point_to_pos, point_to_comp_pos)
+
+                    # TODO: try varying the angle bounds
+                    if 40 < alpha and alpha < 140:
+                        triangulable = True
+                        break
+
+                if triangulable:
+                    total += 1
+                    break
+                else:
+                    triangulable_cams.append(pos_vec)
+
+            if fov_count >= 2:
+                num_seen_points += 1
+
+    coverage = num_seen_points / total_points
+    obj = -sigmoid(total) * coverage
+    # obj can range from -1 to 0
+    return obj
+
+
+def average_reciprocal_gdop(x):
+    total = 0
+
+    # loop over all points in the grid defined by cutting V every epsilon meters
+    grid_point = np.array([0, 0])
+
+    # loop over each camera to see if the point at (p_x, p_y, p_z) lies in the FOVs of 
+    # two triangulable cameras (angle between them is between 40 and 140 degrees)
+    triangulable_cams = []
+    reachable_cams = []
+    triangulable = False
+    for i in range(N):
+        cam_start = i * NUM_VAR
+        cam_x = x[cam_start]
+        cam_y = x[cam_start+1]
+
+        pos_vec = np.array([cam_x, cam_y])
+
+        # TODO: change this so the position of the sensors inside the camera is accurate
+        # Each camera has two sensors inside
+        reachable_cams.extend([cam_x + 0.01, cam_y])
+        reachable_cams.extend([cam_x - 0.01, cam_y])
+
+        # check triangulability of this camera with all the other reachable ones
+        if not triangulable:
+            for cam in triangulable_cams:
+                comp_pos_vec = cam
+                # get vector from point to pos and point to comp_pos
+                point_to_pos = np.subtract(pos_vec, grid_point)
+                point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
+                # compute angle between the two pos vectors (in degrees) and see if triangulable
+                alpha = angle_between(point_to_pos, point_to_comp_pos)
+
+                # TODO: try varying the angle bounds
+                if 40 < alpha and alpha < 140:
+                    triangulable = True
+            triangulable_cams.append(pos_vec)
+        
+    if triangulable:
+        g = gdop(reachable_cams, grid_point)
+        f = 1/g
+        total += (f * (epsilon ** 2))
+
+    volume = V_x * V_y
+    # we make objective negative so the function can be minimized
+    obj = -total / volume
+    return obj
+
+
+def grid_dimensions(V_x, V_y):
+    n_x = int(V_x / epsilon) + 1
+    n_y = int(V_y / epsilon) + 1
+
+    return n_x, n_y
+
+
+# TODO: write tests for gdop
+# PRECONDITION: n >= 2
+def gdop(sats, receiver):
+    x = receiver[0]
+    y = receiver[1]
+
+    pre_A = []
+    NUM_SAT_VAR = 2
+
+    n = len(sats) // NUM_SAT_VAR
+    for i in range(n):
+        sat_start = i * NUM_SAT_VAR 
+        x_i = sats[sat_start]
+        y_i = sats[sat_start+1]
+        R_i = sqrt((x_i - x)**2 + (y_i - y)**2)
+        # TODO: how to properly handle the case of a satellite being directly on a receiver?
+        if R_i == 0:
+            continue
+        else:
+            ith_vec = [(x_i - x)/R_i, (y_i - y)/R_i, -1]
+        pre_A.append(ith_vec)
+        
+    A = np.array(pre_A)
+    A_times_transpose = np.matmul(A.T, A)
+    Q = np.linalg.inv(A_times_transpose)
+    return sqrt(np.trace(Q))
+
+
 def main():
-    three_cam_test()
+    optimal_2d_three_cam_test()
 
 if __name__ == '__main__':
     main()

@@ -1,10 +1,10 @@
-from random import triangular
 from guesses import gen_guess_box
 import math
 from math import sqrt
 import numpy as np
 from scipy.optimize import Bounds, minimize, NonlinearConstraint
 
+# TODO: change these to reflect the most accurate specs
 # FOV lower bound (objects must be at least this far to be seen)
 fov_lower_bound = 1
 # FOV upper bound a.k.a height of the cone (objects further than this are out of range)
@@ -55,6 +55,7 @@ def average_reciprocal_gdop(x):
                 # two triangulable cameras (angle between them is between 40 and 140 degrees)
                 triangulable_cams = []
                 reachable_cams = []
+                triangulable = False
                 for i in range(N):
                     cam_start = i * NUM_VAR
                     cam_x = x[cam_start]
@@ -71,31 +72,33 @@ def average_reciprocal_gdop(x):
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        reachable_cams.extend([cam_x, cam_y, cam_z])
+                        # TODO: change this so the position of the sensors inside the camera is accurate
+                        # Each camera has two sensors inside
+                        sensor_sep = 0.01
+                        reachable_cams.extend([cam_x + sensor_sep, cam_y, cam_z])
+                        reachable_cams.extend([cam_x - sensor_sep, cam_y, cam_z])
 
-                        # check triangulability of this camera with all the other reachable ones
-                        triangulable = False
-                        for cam in triangulable_cams:
-                            comp_pos_vec, comp_orientation_vec = cam[0], cam[1]
-                            # get vector from point to pos and point to comp_pos
-                            point_to_pos = np.subtract(pos_vec, grid_point)
-                            point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
-                            # compute angle between the two pos vectors (in degrees) and see if triangulable
-                            alpha = angle_between(point_to_pos, point_to_comp_pos)
+                        NUM_POS_VARS = 3
+                        MIN_CAMS_VISIBLE = 6
+                        if not triangulable and len(reachable_cams) >= MIN_CAMS_VISIBLE * NUM_POS_VARS:
+                            # check triangulability of this camera with all the other reachable ones
+                            for cam in triangulable_cams:
+                                comp_pos_vec, comp_orientation_vec = cam[0], cam[1]
+                                # get vector from point to pos and point to comp_pos
+                                point_to_pos = np.subtract(pos_vec, grid_point)
+                                point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
+                                # compute angle between the two pos vectors (in degrees) and see if triangulable
+                                alpha = angle_between(point_to_pos, point_to_comp_pos)
 
-                            # TODO: try varying the angle bounds
-                            if 40 < alpha and alpha < 140:
-                                triangulable = True
-                                break
-
-                        if triangulable:
-                            # here I should be adding (1/GDOP)*(epsilon^3) to the total
-                            g = gdop(reachable_cams, grid_point)
-                            f = 1/g
-                            total += (f * (epsilon ** 3))
-                            break
-                        else:
+                                # check if the angle between the two cameras falls between the triangulability bounds  
+                                if 40 < alpha and alpha < 140:
+                                    triangulable = True
                             triangulable_cams.append((pos_vec, orientation_vec))
+
+                if triangulable:
+                    g = gdop(reachable_cams, grid_point)
+                    f = 1/g
+                    total += (f * (epsilon ** 3))
 
     volume = V_x * V_y * V_z 
     # we make objective negative so the function can be minimized
@@ -189,8 +192,11 @@ def gdop(sats, receiver):
         pre_A.append(ith_vec)
         
     A = np.array(pre_A)
+    # print(f'A:\n{A}')
     A_times_transpose = np.matmul(A.T, A)
+    # print(f'A times transpose:\n{A_times_transpose}')
     Q = np.linalg.inv(A_times_transpose)
+    # print(f'Q:\n{Q}')
     return sqrt(np.trace(Q))
 
 
@@ -331,8 +337,10 @@ def main():
 
     x0 = gen_guess_box(V_x, V_y, V_z)
 
-    print("minimizing")
-    res = minimize(average_reciprocal_gdop, x0, bounds=bounds, options={"eps":0.1, "disp":True})
+    # specify the obstacles present in the space
+    obstacles = []
+
+    res = minimize(average_reciprocal_gdop, x0, args=(obstacles,), bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)
 
 if __name__ == '__main__':
