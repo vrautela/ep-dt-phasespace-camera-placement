@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
-from ..optimization.obstacles import CylinderObstacle
+from optimization.obstacles import CylinderObstacle
 
 def sph2cart(r, theta, phi):
     x = r * np.cos(phi) * np.sin(theta)
