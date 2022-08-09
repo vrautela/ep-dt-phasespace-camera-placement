@@ -4,8 +4,8 @@ import numpy as np
 from scipy.optimize import Bounds, minimize, NonlinearConstraint
 from typing import List
 
-from guesses import gen_guess_box
-from obstacles import CylinderObstacle, Obstacle
+from optimization.guesses import gen_guess_box
+from optimization.obstacles import CylinderObstacle, Obstacle
 
 # TODO: change these to reflect the most accurate specs
 # FOV lower bound (objects must be at least this far to be seen)
@@ -13,7 +13,7 @@ fov_lower_bound = 1
 # FOV upper bound a.k.a height of the cone (objects further than this are out of range)
 fov_upper_bound = 5
 # FOV degree (a.k.a angle between cone axis and slant)
-fov_degree = 50
+fov_degree = 60
 # FOV base radius (a.k.a radius of the base of the cone)
 fov_base_radius = fov_upper_bound * np.tan(np.deg2rad(fov_degree))
 
@@ -350,7 +350,7 @@ def main():
     x0 = gen_guess_box(V_x, V_y, V_z)
 
     # specify the obstacles present in the space
-    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.25)]
+    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 1)]
 
     res = minimize(average_reciprocal_gdop, x0, args=(obstacles,), bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)
