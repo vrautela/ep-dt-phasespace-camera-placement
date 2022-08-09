@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
+from ..optimization.obstacles import CylinderObstacle
+
 def sph2cart(r, theta, phi):
     x = r * np.cos(phi) * np.sin(theta)
     y = r * np.sin(phi) * np.sin(theta)
@@ -28,6 +30,8 @@ def main():
     #     3.7325057 , 11.48098716,  0.0993339 ,  1.15662046,  3.59915896,
     #     3.56099398, 11.59603136,  2.72509049,  2.28916842,  3.7784115 ]
 
+    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.25)]
+
     res = [ 0.15208953,  0.41470837,  0.14167566,  1.09330739,  0.73908804,
         0.08182775,  0.38898396,  2.80639514,  2.1260087 ,  0.8094658 ,
         0.11021482, 11.44863116,  0.09666127,  1.06809172,  5.37997749,
@@ -48,6 +52,10 @@ def main():
     ax.set_xlim([0, 4])
     ax.set_ylim([0, 12])
     ax.set_zlim([0, 3])
+
+    for ob in obstacles:
+        ob.add_to_plot(fig, ax)
+
     plt.show()
 
 if __name__ == "__main__":

@@ -1,8 +1,11 @@
-from guesses import gen_guess_box
 import math
 from math import sqrt
 import numpy as np
 from scipy.optimize import Bounds, minimize, NonlinearConstraint
+from typing import List
+
+from guesses import gen_guess_box
+from obstacles import CylinderObstacle, Obstacle
 
 # TODO: change these to reflect the most accurate specs
 # FOV lower bound (objects must be at least this far to be seen)
@@ -38,7 +41,7 @@ def grid_dimensions(V_x, V_y, V_z):
     return n_x, n_y, n_z
 
 
-def average_reciprocal_gdop(x):
+def average_reciprocal_gdop(x, obstacles: List[Obstacle]):
     total = 0
 
     # loop over all points in the grid defined by cutting V every epsilon meters
@@ -71,29 +74,38 @@ def average_reciprocal_gdop(x):
                     orientation_z = np.cos(cam_theta)
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
+                    # check if this camera can see the point
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        # TODO: change this so the position of the sensors inside the camera is accurate
-                        # Each camera has two sensors inside
-                        sensor_sep = 0.01
-                        reachable_cams.extend([cam_x + sensor_sep, cam_y, cam_z])
-                        reachable_cams.extend([cam_x - sensor_sep, cam_y, cam_z])
+                        obscured = False
+                        # check if any of the obstacles obscures the camera's vision
+                        for ob in obstacles:
+                            if ob.does_line_segment_intersect(pos_vec, grid_point):
+                                obscured = True
+                                break
+                        
+                        if not obscured:
+                            # TODO: change this so the position of the sensors inside the camera is accurate
+                            # Each camera has two sensors inside
+                            sensor_sep = 0.01
+                            reachable_cams.extend([cam_x + sensor_sep, cam_y, cam_z])
+                            reachable_cams.extend([cam_x - sensor_sep, cam_y, cam_z])
 
-                        NUM_POS_VARS = 3
-                        MIN_CAMS_VISIBLE = 6
-                        if not triangulable and len(reachable_cams) >= MIN_CAMS_VISIBLE * NUM_POS_VARS:
-                            # check triangulability of this camera with all the other reachable ones
-                            for cam in triangulable_cams:
-                                comp_pos_vec, comp_orientation_vec = cam[0], cam[1]
-                                # get vector from point to pos and point to comp_pos
-                                point_to_pos = np.subtract(pos_vec, grid_point)
-                                point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
-                                # compute angle between the two pos vectors (in degrees) and see if triangulable
-                                alpha = angle_between(point_to_pos, point_to_comp_pos)
+                            NUM_POS_VARS = 3
+                            MIN_CAMS_VISIBLE = 6
+                            if not triangulable and len(reachable_cams) >= MIN_CAMS_VISIBLE * NUM_POS_VARS:
+                                # check triangulability of this camera with all the other reachable ones
+                                for cam in triangulable_cams:
+                                    comp_pos_vec, comp_orientation_vec = cam[0], cam[1]
+                                    # get vector from point to pos and point to comp_pos
+                                    point_to_pos = np.subtract(pos_vec, grid_point)
+                                    point_to_comp_pos = np.subtract(comp_pos_vec, grid_point)
+                                    # compute angle between the two pos vectors (in degrees) and see if triangulable
+                                    alpha = angle_between(point_to_pos, point_to_comp_pos)
 
-                                # check if the angle between the two cameras falls between the triangulability bounds  
-                                if 40 < alpha and alpha < 140:
-                                    triangulable = True
-                            triangulable_cams.append((pos_vec, orientation_vec))
+                                    # check if the angle between the two cameras falls between the triangulability bounds  
+                                    if 40 < alpha and alpha < 140:
+                                        triangulable = True
+                                triangulable_cams.append((pos_vec, orientation_vec))
 
                 if triangulable:
                     g = gdop(reachable_cams, grid_point)
@@ -338,7 +350,7 @@ def main():
     x0 = gen_guess_box(V_x, V_y, V_z)
 
     # specify the obstacles present in the space
-    obstacles = []
+    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.25)]
 
     res = minimize(average_reciprocal_gdop, x0, args=(obstacles,), bounds=bounds, options={"eps":0.1, "disp":True})
     print(res)

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from math import sqrt
 import numpy as np
-from optimizer import angle_between, sigmoid
+from optimal_camera_placement.optimization.optimizer import angle_between, sigmoid
 from scipy.optimize import Bounds, minimize
 # Test of GDOP vs triangulability metrics
 

@@ -1,6 +1,6 @@
-from guesses import gen_guess_box, gen_guess_cube
-import optimizer
-from optimizer import in_fov, objective_function
+from optimal_camera_placement.optimization.optimizer import gen_guess_box, gen_guess_cube
+from optimal_camera_placement.optimization.optimizer import in_fov, objective_function
+import optimal_camera_placement.optimization.optimizer as optimizer
 import numpy as np
 
 

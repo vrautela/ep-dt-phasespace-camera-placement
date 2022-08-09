@@ -1,7 +1,7 @@
 from matplotlib.colors import ListedColormap
 import matplotlib.pylab as plt
 import numpy as np
-from optimizer import gdop, grid_dimensions, in_fov
+from ..optimization.optimizer import gdop, grid_dimensions, in_fov
 
 # dimensions of V (in m)
 V_x = 3.98
