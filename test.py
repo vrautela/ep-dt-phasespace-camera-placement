@@ -1,7 +1,7 @@
-from ..optimization.guesses import gen_guess_box, gen_guess_cube
+from optimization.guesses import gen_guess_box, gen_guess_cube
 # from ..optimization.optimizer import in_fov, objective_function
 # import ..optimization.optimizer as optimizer
-from ..optimization.obstacles import CylinderObstacle
+from optimization.obstacles import CylinderObstacle
 import numpy as np
 
 
@@ -49,13 +49,13 @@ def test_gen_guess_box_vs_cube():
 
 
 def test_cylinder_intersection():
-    A = np.array([0,0,0])
-    B = np.array([0,0,2])
+    A = np.array([0,0,-1])
+    B = np.array([0,0,1])
     R = 1
     c = CylinderObstacle(A, B, R)
 
-    p1 = np.array([0,0,-1])
-    p2 = np.array([0,0,3])
+    p1 = np.array([1,0,-2])
+    p2 = np.array([0,0,2])
 
     assert(c.does_line_segment_intersect(p1, p2))
 

@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
+from optimization.consts import fov_base_radius, fov_upper_bound, V_x, V_y, V_z
 from optimization.obstacles import CylinderObstacle
+from optimization.utils import rotation_matrix_align_two_vecs
 
 def sph2cart(r, theta, phi):
     x = r * np.cos(phi) * np.sin(theta)
@@ -19,42 +21,79 @@ def convert_array_to_cartesian(a):
     
     return np.array(a2)
 
+
+def connect_two_points(ax, p1, p2):
+    (x1, y1, z1) = p1
+    (x2, y2, z2) = p2
+    ax.plot([x1,x2],[y1,y2],[z1,z2], color='black')
+
+
+def plot_fovs(ax, soa):
+    X, Y, Z, U, V, W = zip(*soa)
+    ax.quiver(X, Y, Z, U, V, W, color='green')
+
+    NUM_CAMS = len(X)
+    for i in range(NUM_CAMS):
+        vertex = np.array([X[i], Y[i], Z[i]])
+        axis = np.array([U[i], V[i], W[i]]) 
+        plot_cone(ax, vertex, axis)
+
+
+def plot_cone(ax, vertex, axis):
+    k = 90
+    theta = np.linspace(0,2*np.pi,k)
+
+    x = fov_base_radius * np.cos(theta)
+    y = fov_base_radius * np.sin(theta)
+    z = [fov_upper_bound] * k
+
+    # 2. rotate cone endpoints so that the z-axis is aligned with the cone axis
+    axis = axis / np.linalg.norm(axis)
+    z_hat = np.array([0,0,1])
+    R = rotation_matrix_align_two_vecs(z_hat, axis)
+
+    for i in range(k):
+        endpoint = np.array([x[i], y[i], z[i]])
+        endpoint_rot = np.matmul(R, endpoint)
+        # 3. shift cone points by vertex
+        for j in range(3):
+            endpoint_rot[j] += vertex[j]
+        
+        # 4. plot lines from vertex to endpoint
+        connect_two_points(ax, vertex, endpoint_rot)
+
+
 # TODO: change main so that it reads from result.txt
 def main():
-    # res = [ 0.19698639,  0.47300143,  0.1079476 ,  0.74370847,  1.01204864,
-    #     0.25011296,  0.43056421,  2.13258286,  2.19820571,  0.75889565,
-    #     0.1020174 ,  8.66475121,  0.01842754,  1.1588392 ,  5.29545831,
-    #     0.94364443, 11.56544843,  2.73584376,  2.43000191,  5.55274855,
-    #     2.93529861,  0.36033861,  0.07577052,  0.94905967,  3.00632277,
-    #     3.8156321 ,  0.6361321 ,  2.7896321 ,  2.12239495,  2.85430612,
-    #     3.7325057 , 11.48098716,  0.0993339 ,  1.15662046,  3.59915896,
-    #     3.56099398, 11.59603136,  2.72509049,  2.28916842,  3.7784115 ]
 
-    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.25)]
+    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.5)]
 
-    res = [ 0.15208953,  0.41470837,  0.14167566,  1.09330739,  0.73908804,
-        0.08182775,  0.38898396,  2.80639514,  2.1260087 ,  0.8094658 ,
-        0.11021482, 11.44863116,  0.09666127,  1.06809172,  5.37997749,
-        0.09179937, 11.50576853,  2.75039422,  2.20732516,  5.58059941,
-        3.83063347,  0.38267047,  0.08737888,  1.1591049 ,  2.44031178,
-        3.89367088,  0.24102442,  2.83428936,  2.19352159,  2.51847046,
-        3.84511644, 11.54322612,  0.09125082,  1.26672622,  3.77436118,
-        3.89433325, 11.60313932,  2.78029694,  2.14965256,  3.74062094]
+    solution = [ 0.        ,  3.56804253,  0.        ,  0.77552265,  0.4802122 ,
+        0.11486522,  0.8690316 ,  2.9       ,  2.35207239,  0.69989155,
+        0.        , 11.34447468,  0.        ,  0.829442  ,  5.57522773,
+        0.        ,  9.34701093,  2.9       ,  2.33266765,  5.7501486 ,
+        3.90661141,  1.95856593,  0.        ,  0.5680979 ,  2.02945637,
+        3.97061831,  3.85644206,  2.9       ,  2.33583625,  2.55654001,
+        3.98      ,  8.99297681,  0.        ,  0.81386387,  3.546532  ,
+        3.98      , 10.96330585,  2.9       ,  2.20996887,  3.5915717 ]
 
-    pre_soa = [[res[5*i], res[5*i+1], res[5*i+2], res[5*i+3], res[5*i+4]] for i in range(8)]
-
+    pre_soa = [[solution[5*i], solution[5*i+1], solution[5*i+2], solution[5*i+3], solution[5*i+4]] for i in range(8)]
     soa = convert_array_to_cartesian(pre_soa)
 
-    X, Y, Z, U, V, W = zip(*soa)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.quiver(X, Y, Z, U, V, W)
-    ax.set_xlim([0, 4])
-    ax.set_ylim([0, 12])
-    ax.set_zlim([0, 3])
+
+    plot_fovs(ax, soa)
 
     for ob in obstacles:
         ob.add_to_plot(fig, ax)
+
+    # ax.set_xlim([0, V_x])
+    # ax.set_ylim([0, V_y])
+    # ax.set_zlim([0, V_z])
+    ax.set_xlabel('x (m)')
+    ax.set_ylabel('y (m)')
+    ax.set_zlabel('z (m)')
 
     plt.show()
 

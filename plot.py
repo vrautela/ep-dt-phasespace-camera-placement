@@ -1,27 +1,15 @@
 from matplotlib.colors import ListedColormap
 import matplotlib.pylab as plt
 import numpy as np
-from ..optimization.optimizer import gdop, grid_dimensions, in_fov
 
-# dimensions of V (in m)
-V_x = 3.98
-V_y = 12.03
-V_z = 2.9
-V = (V_x, V_y, V_z)
+from optimization.consts import epsilon, N, NUM_VAR, V, V_x, V_y, V_z
+from optimization.obstacles import CylinderObstacle 
+from optimization.utils import gdop, grid_dimensions, in_fov
 
 n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
 
-# number of cameras
-N = 8
 
-# numbers of position variables (and also number of angle variables)
-NUM_VAR = 5
-
-# the scale of the grid
-epsilon = 0.5
-
-
-def create_gdop_grid(x):
+def create_gdop_grid(x, obstacles):
     gdop_grid = []
     for a in range(n_x):
         p_x = epsilon * a 
@@ -52,10 +40,18 @@ def create_gdop_grid(x):
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        fov_count += 1
-                        reachable_cams.extend([cam_x + 0.01, cam_y, cam_z])
-                        reachable_cams.extend([cam_x - 0.01, cam_y, cam_z])
-                        # reachable_cams.extend([cam_x, cam_y, cam_z])
+                        obscured = False
+                        # check if any of the obstacles obscures the camera's vision
+                        for ob in obstacles:
+                            if ob.does_line_segment_intersect(pos_vec, grid_point):
+                                obscured = True
+                                break
+                        
+                        if not obscured:
+                            fov_count += 1
+                            reachable_cams.extend([cam_x + 0.01, cam_y, cam_z])
+                            reachable_cams.extend([cam_x - 0.01, cam_y, cam_z])
+                            # reachable_cams.extend([cam_x, cam_y, cam_z])
                 
                 if fov_count >= 3:
                     gdop_row.append(gdop(reachable_cams, grid_point))
@@ -204,6 +200,7 @@ def create_heatmap_plot(solution):
     plt.show()
 
 
+# Create a scatter plot where each point is colorcoded based on whether it is visible or not
 def create_visibility_3d_scatter_plot(solution):
     visibility_grid = create_visibility_grid(solution)
 
@@ -263,12 +260,6 @@ def create_3d_scatter_plot(solution):
 
     clipped_grid = replace_outliers_with_nan(gdop_grid.flatten())
 
-    print()
-    print(np.nanmax(clipped_grid))
-    print(np.nanmin(clipped_grid))
-    print(np.nanmean(clipped_grid))
-    print(np.nanstd(clipped_grid))
-
     mi = np.nanmin(clipped_grid)
     ma = np.nanmax(clipped_grid)
     c = (clipped_grid - mi) / (ma - mi)
@@ -313,8 +304,8 @@ def replace_outliers_with_nan(data, num_std_devs = 2):
     return data
 
 
-def create_discrete_3d_scatter_plot(solution):
-    gdop_grid = create_gdop_grid(solution)
+def create_discrete_gdop_3d_scatter_plot(solution, obstacles):
+    gdop_grid = create_gdop_grid(solution, obstacles)
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -375,8 +366,9 @@ def create_discrete_3d_scatter_plot(solution):
                 c_num.append('red')
 
 
-    p1 = ax.scatter(x_nan, y_nan, z_nan, color='pink', alpha=1)
-    p2 = ax.scatter(x_num, y_num, z_num, c=c_num, alpha=1)
+    s = 8
+    p1 = ax.scatter(x_nan, y_nan, z_nan, color='pink', alpha=1, s=s)
+    p2 = ax.scatter(x_num, y_num, z_num, c=c_num, alpha=1, s=s)
 
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
@@ -386,20 +378,23 @@ def create_discrete_3d_scatter_plot(solution):
 
     # TODO: add key/legend to the plot
 
+    for ob in obstacles:
+        ob.add_to_plot(fig, ax)
 
     plt.show()
 
 
 def main():
-    solution = [ 0.1617669 ,  2.65104963,  0.        ,  0.91824958,  0.97310717,
-        0.        ,  3.76484067,  2.9       ,  2.10560244,  0.69934691,
-        0.        , 11.06708181,  0.        ,  1.16079753,  5.4891033 ,
-        0.02591085,  9.02950831,  2.9       ,  2.28789139,  5.98938951,
-        3.81101486,  6.13502485,  0.        ,  0.76304537,  2.00578746,
-        3.63758389,  3.06531044,  2.88805054,  2.1806488 ,  2.30498138,
-        3.67245603,  8.9512966 ,  0.        ,  0.95314404,  3.68103238,
-        3.77598245, 11.00919657,  2.9       ,  2.20416452,  3.91420568]
-    create_discrete_3d_scatter_plot(solution)
+    solution = [ 0.        ,  3.56804253,  0.        ,  0.77552265,  0.4802122 ,
+        0.11486522,  0.8690316 ,  2.9       ,  2.35207239,  0.69989155,
+        0.        , 11.34447468,  0.        ,  0.829442  ,  5.57522773,
+        0.        ,  9.34701093,  2.9       ,  2.33266765,  5.7501486 ,
+        3.90661141,  1.95856593,  0.        ,  0.5680979 ,  2.02945637,
+        3.97061831,  3.85644206,  2.9       ,  2.33583625,  2.55654001,
+        3.98      ,  8.99297681,  0.        ,  0.81386387,  3.546532  ,
+        3.98      , 10.96330585,  2.9       ,  2.20996887,  3.5915717 ]
+    obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.5)]
+    create_discrete_gdop_3d_scatter_plot(solution, obstacles)
 
 if __name__ == '__main__':
     main()
