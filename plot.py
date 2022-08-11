@@ -64,7 +64,7 @@ def create_gdop_grid(x, obstacles):
     return np.array(gdop_grid)
 
 
-def create_visibility_grid(x):
+def create_visibility_grid(x, obstacles):
     # loop over all points in the grid defined by cutting V every epsilon meters
     n_x, n_y, n_z = grid_dimensions(V_x, V_y, V_z)
 
@@ -97,7 +97,14 @@ def create_visibility_grid(x):
                     orientation_vec = np.array([orientation_x, orientation_y, orientation_z])
 
                     if in_fov(pos_vec, orientation_vec, grid_point):
-                        fov_count += 1
+                        obscured = False
+                        for ob in obstacles:
+                            if ob.does_line_segment_intersect(pos_vec, grid_point):
+                                obscured = True
+                                break
+                        
+                        if not obscured:
+                            fov_count += 1
                 visibility_row.append(fov_count)
             visibility_plane.append(visibility_row)
         visibility_grid.append(visibility_plane)
@@ -201,8 +208,8 @@ def create_heatmap_plot(solution):
 
 
 # Create a scatter plot where each point is colorcoded based on whether it is visible or not
-def create_visibility_3d_scatter_plot(solution):
-    visibility_grid = create_visibility_grid(solution)
+def create_visibility_3d_scatter_plot(solution, obstacles):
+    visibility_grid = create_visibility_grid(solution, obstacles)
 
     xs = []
     ys = []
@@ -228,7 +235,27 @@ def create_visibility_3d_scatter_plot(solution):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
-    p = ax.scatter(xs, ys, zs, c=c, alpha=1)
+    num_els = len(xs)
+    s = 8
+
+    x_visible = [xs[i] for i in range(num_els) if c[i] == 'red']
+    y_visible = [ys[i] for i in range(num_els) if c[i] == 'red']
+    z_visible = [zs[i] for i in range(num_els) if c[i] == 'red']
+    p_visible = ax.scatter(x_visible, y_visible, z_visible, c='red', alpha=1, s=s, label='visible')
+    
+    x_invisible = [xs[i] for i in range(num_els) if c[i] == 'black']
+    y_invisible = [ys[i] for i in range(num_els) if c[i] == 'black']
+    z_invisible = [zs[i] for i in range(num_els) if c[i] == 'black']
+    p_invisible = ax.scatter(x_invisible, y_invisible, z_invisible, c='black', alpha=1, s=s, label='invisible')
+
+    for ob in obstacles:
+        ob.add_to_plot(fig, ax)
+
+    ax.set_xlabel('x (m)')
+    ax.set_ylabel('y (m)')
+    ax.set_zlabel('z (m)')
+    ax.set_title('Visibility values')
+    ax.legend(loc='upper left', bbox_to_anchor=(1,1))
 
     plt.show()
 
@@ -345,6 +372,11 @@ def create_discrete_gdop_3d_scatter_plot(solution, obstacles):
     y_num = []
     z_num = []
     c_num = []
+    color_2 = 'black'
+    color_5 = 'blue'
+    color_10 = 'yellow'
+    color_20 = 'orange'
+    color_else = 'red'
     for i in range(len(c)):
         if not np.isfinite(c[i]):
             x_nan.append(xs[i])
@@ -355,31 +387,56 @@ def create_discrete_gdop_3d_scatter_plot(solution, obstacles):
             y_num.append(ys[i])
             z_num.append(zs[i])
             if c[i] < 2:
-                c_num.append('black')
+                c_num.append(color_2)
             elif c[i] < 5:
-                c_num.append('blue')
+                c_num.append(color_5)
             elif c[i] < 10:
-                c_num.append('yellow')
+                c_num.append(color_10)
             elif c[i] < 20:
-                c_num.append('orange')
+                c_num.append(color_20)
             else:
-                c_num.append('red')
+                c_num.append(color_else)
 
 
     s = 8
-    p1 = ax.scatter(x_nan, y_nan, z_nan, color='pink', alpha=1, s=s)
-    p2 = ax.scatter(x_num, y_num, z_num, c=c_num, alpha=1, s=s)
+    p_nan = ax.scatter(x_nan, y_nan, z_nan, color='pink', alpha=1, s=s, label='g undefined')
+
+    num_els = len(x_num)
+    x_2 = [x_num[i] for i in range(num_els) if c_num[i] == color_2]
+    y_2 = [y_num[i] for i in range(num_els) if c_num[i] == color_2]
+    z_2 = [z_num[i] for i in range(num_els) if c_num[i] == color_2]
+    p_2 = ax.scatter(x_2, y_2, z_2, color=color_2, alpha=1, s=s, label='g < 2')
+
+    x_5 = [x_num[i] for i in range(num_els) if c_num[i] == color_5]
+    y_5 = [y_num[i] for i in range(num_els) if c_num[i] == color_5]
+    z_5 = [z_num[i] for i in range(num_els) if c_num[i] == color_5]
+    p_5 = ax.scatter(x_5, y_5, z_5, color=color_5, alpha=1, s=s, label='2 < g < 5')
+
+    x_10 = [x_num[i] for i in range(num_els) if c_num[i] == color_10]
+    y_10 = [y_num[i] for i in range(num_els) if c_num[i] == color_10]
+    z_10 = [z_num[i] for i in range(num_els) if c_num[i] == color_10]
+    p_10 = ax.scatter(x_10, y_10, z_10, color=color_10, alpha=1, s=s, label='5 < g < 10')
+
+    x_20 = [x_num[i] for i in range(num_els) if c_num[i] == color_20]
+    y_20 = [y_num[i] for i in range(num_els) if c_num[i] == color_20]
+    z_20 = [z_num[i] for i in range(num_els) if c_num[i] == color_20]
+    p_20 = ax.scatter(x_20, y_20, z_20, color=color_20, alpha=1, s=s, label='10 < g < 20')
+
+    x_else = [x_num[i] for i in range(num_els) if c_num[i] == color_else]
+    y_else = [y_num[i] for i in range(num_els) if c_num[i] == color_else]
+    z_else = [z_num[i] for i in range(num_els) if c_num[i] == color_else]
+    p_else = ax.scatter(x_else, y_else, z_else, color=color_else, alpha=1, s=s, label='20 < g')
+
+    for ob in obstacles:
+        ob.add_to_plot(fig, ax)
+
 
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Z (m)')
-    # title includes the original min/max of the gdop grid (so colorbar is fraction of that max)
     ax.set_title(f'GDOP values')
 
-    # TODO: add key/legend to the plot
-
-    for ob in obstacles:
-        ob.add_to_plot(fig, ax)
+    ax.legend(loc='upper left', bbox_to_anchor=(1,1))
 
     plt.show()
 
@@ -394,7 +451,6 @@ def main():
         3.98      ,  8.99297681,  0.        ,  0.81386387,  3.546532  ,
         3.98      , 10.96330585,  2.9       ,  2.20996887,  3.5915717 ]
     obstacles = [CylinderObstacle(np.array([1.5,6,1.5]), np.array([2.5,6,1.5]), 0.5)]
-    create_discrete_gdop_3d_scatter_plot(solution, obstacles)
-
+    create_visibility_3d_scatter_plot(solution, obstacles)
 if __name__ == '__main__':
     main()

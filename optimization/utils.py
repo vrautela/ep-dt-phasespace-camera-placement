@@ -1,4 +1,4 @@
-from math import sqrt
+from math import exp, sqrt
 import numpy as np
 from optimization.consts import epsilon, fov_base_radius, fov_lower_bound, fov_upper_bound
 
@@ -74,3 +74,17 @@ def rotation_matrix_align_two_vecs(a: np.ndarray, b: np.ndarray):
     R = I + v_ss_cp + (1/(1+c))*np.linalg.matrix_power(v_ss_cp, 2)
 
     return R
+
+
+def sigmoid(x):
+    return 1/(1 + exp(-x))
+
+
+def unit_vector(vector):
+    return vector / np.linalg.norm(vector)
+
+# return angle between vectors v1 and v2 IN DEGREES
+def angle_between(v1, v2):
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    return np.rad2deg(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))

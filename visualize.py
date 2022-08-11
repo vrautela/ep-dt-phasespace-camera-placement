@@ -28,15 +28,16 @@ def connect_two_points(ax, p1, p2):
     ax.plot([x1,x2],[y1,y2],[z1,z2], color='black')
 
 
-def plot_fovs(ax, soa):
+def plot_fovs(ax, soa, show_cones=False):
     X, Y, Z, U, V, W = zip(*soa)
     ax.quiver(X, Y, Z, U, V, W, color='green')
 
-    NUM_CAMS = len(X)
-    for i in range(NUM_CAMS):
-        vertex = np.array([X[i], Y[i], Z[i]])
-        axis = np.array([U[i], V[i], W[i]]) 
-        plot_cone(ax, vertex, axis)
+    if show_cones:
+        NUM_CAMS = len(X)
+        for i in range(NUM_CAMS):
+            vertex = np.array([X[i], Y[i], Z[i]])
+            axis = np.array([U[i], V[i], W[i]]) 
+            plot_cone(ax, vertex, axis)
 
 
 def plot_cone(ax, vertex, axis):

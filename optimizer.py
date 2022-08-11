@@ -281,20 +281,6 @@ def count_objective_function(x):
     return obj
 
 
-def sigmoid(x):
-    return 1/(1 + math.exp(-x))
-
-
-def unit_vector(vector):
-    return vector / np.linalg.norm(vector)
-
-# return angle between vectors v1 and v2 IN DEGREES
-def angle_between(v1, v2):
-    v1_u = unit_vector(v1)
-    v2_u = unit_vector(v2)
-    return np.rad2deg(np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
-
-
 def main():
     '''
     We want to set up and solve a constrained optimization problem (using a pre-built optimizer)
